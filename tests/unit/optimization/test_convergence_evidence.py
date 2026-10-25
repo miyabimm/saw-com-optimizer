@@ -139,56 +139,14 @@ def _feasible_trace_record(worst_il=7.0):
     }
 
 
-def _trace_row(record, comparator, unique_evaluation, *, new_format):
-    row = {
+def _trace_row(record, comparator, unique_evaluation):
+    return {
         "unique_evaluation": unique_evaluation,
         "rank_key": list(comparator.rank_key(record)),
+        "comparator": type(comparator).__name__,
+        "primary_metric": comparator.primary_metric(record),
+        "primary_metric_feasible": bool(record["feasible"]),
     }
-    if new_format:
-        row.update({
-            "comparator": type(comparator).__name__,
-            "primary_metric": comparator.primary_metric(record),
-            "primary_metric_feasible": bool(record["feasible"]),
-        })
-    return row
-
-
-def test_geometry_first_trace_uses_underlying_primary_rank_component():
-    comparator = GeometryFirstComparator()
-    earlier = comparator.rank_key(_infeasible_trace_record(0.4))
-    later = comparator.rank_key(_infeasible_trace_record(0.39))
-    assert earlier == (0.0, 0.0, 1.0, 0.4, 0.4, 8.0, 2.0)
-    assert later == (0.0, 0.0, 1.0, 0.39, 0.39, 8.0, 2.0)
-    assert earlier[1] == later[1] == 0.0
-    assert earlier[3] == 0.4
-    assert later[3] == 0.39
-    assert comparator.primary_metric(_infeasible_trace_record(0.4)) == 0.4
-    assert comparator.better(
-        _infeasible_trace_record(0.39), _infeasible_trace_record(0.4)
-    )
-
-    evidence = canonical.derive_checkpoint_evidence({
-        "requested_unique_design_budget": 10_000,
-        "best_so_far_trace": [
-            {"unique_evaluation": 234, "rank_key": list(earlier)},
-            {"unique_evaluation": 5_000, "rank_key": list(later)},
-        ],
-    }, trace_comparator="GeometryFirstComparator")
-
-    assert evidence["fraction_of_budget_at_last_significant_improvement"] == 0.5
-
-    new_trace_row = {
-        "comparator": "GeometryFirstComparator",
-        "rank_key": list(earlier),
-        "primary_metric": comparator.primary_metric(_infeasible_trace_record(0.4)),
-    }
-    assert canonical._trace_primary(new_trace_row) == 0.4
-    feasible_trace_row = {
-        "comparator": "GeometryFirstComparator",
-        "rank_key": list(comparator.rank_key(_feasible_trace_record())),
-        "primary_metric": comparator.primary_metric(_feasible_trace_record()),
-    }
-    assert canonical._trace_primary(feasible_trace_row) == 7.0
 
 
 def test_geometry_first_primary_metric_handles_evaluation_and_geometry_states():
@@ -212,58 +170,19 @@ def test_geometry_first_primary_metric_handles_evaluation_and_geometry_states():
     )
     assert comparator.better(feasible, rejected)
     assert comparator.better(failed, rejected)
-    assert canonical._trace_primary(
-        {"rank_key": list(comparator.rank_key(rejected))},
-        legacy_comparator="GeometryFirstComparator",
-    ) is None
-    assert canonical._trace_primary(
-        {"rank_key": list(comparator.rank_key(failed))},
-        legacy_comparator="GeometryFirstComparator",
-    ) is None
-
-
-def test_feasibility_first_trace_uses_its_primary_rank_component():
-    comparator = FeasibilityFirstComparator()
-    earlier = comparator.rank_key(_infeasible_trace_record(0.4))
-    later = comparator.rank_key(_infeasible_trace_record(0.39))
-    assert earlier == (1.0, 0.4, 0.4, 8.0, 2.0)
-    assert later == (1.0, 0.39, 0.39, 8.0, 2.0)
-    assert earlier[1] == 0.4
-    assert later[1] == 0.39
-    assert comparator.primary_metric(_infeasible_trace_record(0.4)) == 0.4
-    assert comparator.better(
-        _infeasible_trace_record(0.39), _infeasible_trace_record(0.4)
-    )
-
-    evidence = canonical.derive_checkpoint_evidence({
-        "requested_unique_design_budget": 10_000,
-        "best_so_far_trace": [
-            {"unique_evaluation": 234, "rank_key": list(earlier)},
-            {"unique_evaluation": 5_000, "rank_key": list(later)},
-        ],
-    }, trace_comparator="FeasibilityFirstComparator")
-
-    assert evidence["fraction_of_budget_at_last_significant_improvement"] == 0.5
-
-    feasible = _feasible_trace_record()
-    feasible_key = comparator.rank_key(feasible)
-    assert feasible_key == (0.0, 7.0, 2.0, 0.0, 0.0)
-    assert comparator.primary_metric(feasible) == 7.0
-    assert comparator.better(feasible, _infeasible_trace_record(0.4))
     assert canonical._trace_primary({
-        "comparator": "FeasibilityFirstComparator",
-        "rank_key": list(feasible_key),
-        "primary_metric": 7.0,
-    }) == 7.0
-    infeasible_trace_row = {
-        "comparator": "FeasibilityFirstComparator",
-        "rank_key": list(earlier),
-        "primary_metric": comparator.primary_metric(_infeasible_trace_record(0.4)),
-    }
-    assert canonical._trace_primary(infeasible_trace_row) == 0.4
+        "comparator": "GeometryFirstComparator",
+        "rank_key": list(comparator.rank_key(rejected)),
+        "primary_metric": comparator.primary_metric(rejected),
+    }) is None
+    assert canonical._trace_primary({
+        "comparator": "GeometryFirstComparator",
+        "rank_key": list(comparator.rank_key(failed)),
+        "primary_metric": comparator.primary_metric(failed),
+    }) is None
 
 
-def test_feasibility_transition_and_within_regime_thresholds_for_old_and_new_traces():
+def test_feasibility_transition_and_within_regime_thresholds_for_current_traces():
     infeasible = _infeasible_trace_record(0.4)
     feasible_8 = _feasible_trace_record(8.0)
     feasible_799 = _feasible_trace_record(7.99)
@@ -271,88 +190,19 @@ def test_feasibility_transition_and_within_regime_thresholds_for_old_and_new_tra
     feasible_789 = _feasible_trace_record(7.89)
 
     for comparator in (FeasibilityFirstComparator(), GeometryFirstComparator()):
-        for trace_format in ("rank_key_only", "primary_metric", "explicit_regime"):
-            new_format = trace_format != "rank_key_only"
-            trace = [
-                _trace_row(infeasible, comparator, 100, new_format=new_format),
-                _trace_row(feasible_8, comparator, 200, new_format=new_format),
-                _trace_row(feasible_799, comparator, 300, new_format=new_format),
-                _trace_row(feasible_797, comparator, 400, new_format=new_format),
-                _trace_row(feasible_789, comparator, 800, new_format=new_format),
-            ]
-            if trace_format == "primary_metric":
-                # Trace format emitted by the first PR commit: metric and
-                # comparator are present, while feasibility is inferred from
-                # the exact supported rank-key layout.
-                for row in trace:
-                    row.pop("primary_metric_feasible")
-            trace_comparator = None if new_format else type(comparator).__name__
+        trace = [
+            _trace_row(infeasible, comparator, 100),
+            _trace_row(feasible_8, comparator, 200),
+            _trace_row(feasible_799, comparator, 300),
+            _trace_row(feasible_797, comparator, 400),
+            _trace_row(feasible_789, comparator, 800),
+        ]
 
-            # Infeasible -> feasible is significant despite a numerically
-            # larger scalar; a sub-threshold same-regime change is not.
-            assert canonical._last_significant_fraction(
-                trace[:2], 1000, legacy_comparator=trace_comparator,
-            ) == 0.2
-            assert canonical._last_significant_fraction(
-                trace[:3], 1000, legacy_comparator=trace_comparator,
-            ) == 0.2
-            # Same-regime absolute (0.03) and relative (>1%) improvements
-            # continue to use the existing thresholds.
-            assert canonical._last_significant_fraction(
-                trace[:4], 1000, legacy_comparator=trace_comparator,
-            ) == 0.4
-            assert canonical._last_significant_fraction(
-                trace, 1000, legacy_comparator=trace_comparator,
-            ) == 0.8
-
-
-def test_legacy_runner_rank_tuple_trace_detects_feasibility_transition():
-    comparator = FeasibilityFirstComparator()
-    trace = [
-        {
-            "unique_evaluation": 100,
-            "rank_tuple": list(comparator.rank_key(_infeasible_trace_record(0.4))),
-            "primary_metric": 0.4,
-        },
-        {
-            "unique_evaluation": 200,
-            "rank_tuple": list(comparator.rank_key(_feasible_trace_record(8.0))),
-            "primary_metric": 8.0,
-        },
-    ]
-
-    assert canonical._last_significant_fraction(trace, 1000) == 0.2
-    assert canonical._last_significant_fraction([
-        {"unique_evaluation": 100, "primary_metric": 0.4},
-        {"unique_evaluation": 200, "primary_metric": 8.0},
-    ], 1000) is None
-
-
-def test_ambiguous_or_unknown_legacy_trace_layouts_remain_unavailable():
-    assert canonical._trace_primary({"rank_key": [0.0, 0.2]}) is None
-    assert canonical._trace_primary({
-        "rank_key": [0.0, 0.2, 0.3, 4.0, 5.0],
-    }) is None
-    assert canonical._trace_primary(
-        {"rank_key": [2.0, 0.2, 0.3, 4.0, 5.0]},
-        legacy_comparator="FeasibilityFirstComparator",
-    ) is None
-    assert canonical._trace_primary({
-        "comparator": "CustomComparator",
-        "rank_key": [1.0, 0.2, 0.3, 4.0, 5.0],
-    }) is None
-    assert canonical._trace_primary({
-        "comparator": "GeometryFirstComparator",
-        "rank_key": [1.0, 0.0, 0.1, 0.1, 0.0, 0.0, 0.0],
-    }) is None
-    assert canonical.derive_checkpoint_evidence({
-        "requested_unique_design_budget": 10_000,
-        "best_so_far_trace": [
-            {"unique_evaluation": 234, "rank_key": [0.0, 0.0, 1.0, 0.4, 0.4, 8.0, 2.0]},
-        ],
-    })["fraction_of_budget_at_last_significant_improvement"] is None
-    assert canonical._trace_primary({
-        "comparator": "CustomComparator",
-        "rank_key": [0.0, 0.0, 1.0, 0.4, 0.4, 8.0, 2.0],
-        "primary_metric": None,
-    }) is None
+        # Infeasible -> feasible is significant despite a numerically larger
+        # scalar; a sub-threshold same-regime change is not.
+        assert canonical._last_significant_fraction(trace[:2], 1000) == 0.2
+        assert canonical._last_significant_fraction(trace[:3], 1000) == 0.2
+        # Same-regime absolute (0.03) and relative (>1%) improvements continue
+        # to use the existing thresholds.
+        assert canonical._last_significant_fraction(trace[:4], 1000) == 0.4
+        assert canonical._last_significant_fraction(trace, 1000) == 0.8

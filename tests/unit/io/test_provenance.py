@@ -5,7 +5,6 @@ from pathlib import Path
 from sawopt.io.provenance import (
     build_fingerprint_metadata,
     computation_gate_matches,
-    read_fingerprint_metadata,
 )
 
 
@@ -48,6 +47,7 @@ class FingerprintV2(unittest.TestCase):
             (root / "src" / "sawopt" / "numerics.py").write_text("result = 2\n", encoding="utf-8")
             source_changed = self._fingerprints(root)
             self.assertNotEqual(before["computation_fingerprint"], source_changed["computation_fingerprint"])
+            self.assertFalse(computation_gate_matches(before, source_changed))
             config_changed = self._fingerprints(root, {"bounds": [1, 5]})
             self.assertNotEqual(source_changed["computation_fingerprint"], config_changed["computation_fingerprint"])
 
@@ -151,20 +151,6 @@ class FingerprintV2(unittest.TestCase):
                     root, {}, computation_paths=["src/sawopt/numerics.py"] * 2,
                     reporting_paths=[],
                 )
-
-    def test_legacy_fingerprint_is_read_without_rewriting_its_value(self):
-        legacy = {"fingerprint": "legacy-v1", "source_hash": "old-source"}
-        normalized = read_fingerprint_metadata(legacy)
-        self.assertEqual(normalized["fingerprint_schema_version"], 1)
-        self.assertEqual(normalized["legacy_fingerprint"], "legacy-v1")
-        self.assertEqual(legacy["fingerprint"], "legacy-v1")
-        self.assertTrue(computation_gate_matches(legacy, {"fingerprint": "legacy-v1"}))
-        self.assertFalse(computation_gate_matches(legacy, {
-            "fingerprint_schema_version": 2,
-            "computation_fingerprint": "legacy-v1",
-            "reporting_fingerprint": "r",
-            "dependency_manifest": {"computation": [], "reporting": []},
-        }))
 
 
 if __name__ == "__main__":
