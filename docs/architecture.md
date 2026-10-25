@@ -13,8 +13,13 @@ PR #120. Issue #119 removed the legacy scientific CLI and detached
 orchestration launch/worker. Issue #124 retired the schema-v1–v4 `export-review` dispatcher and GitHub
 exporter. Issue #128 removes the remaining legacy v1–v4 orchestration
 status/publication/closeout and active-run registry lifecycle; R5 and the
-independent worktree/path safety tools remain separate. Other C2B cleanup
-and R7 remain separate gates.
+independent worktree/path safety tools remain separate. Issue #129 removes
+historical Stage 3/4 study executors and audits, their exclusive report/ZIP
+pipelines and tests, the legacy study-config loader, and
+one-off launch/analysis scripts. Reusable physics, design, evaluation,
+optimizer/checkpoint, Q1-A, R5, synthetic-task, independent worktree/path safety,
+and retained DMS reference/regression responsibilities remain.
+Other C2B cleanup and R7 remain separate gates.
 The former Stage4B fingerprint reconstruction stop gate in Issue #106 is
 superseded; the frozen fingerprint, source commit, and reports remain historical
 facts only. See the [C1
@@ -60,28 +65,31 @@ optimization → evaluation → design + physics
 
 These ownership statements describe target ownership and the R3/R4-authorized
 subsets; they do not imply that the entire repository has reached that target.
-Avoid duplicate implementations and blanket compatibility layers. R3 retains
-the operational seven-variable `core.hybrid.response` path and the narrow
-`problem.hybrid` public import needed by Q1-A golden verification; moved
-`core.models`, `core.metrics`, and mixed `problem/` implementations are
-removed rather than retained as proxy modules. Current R2 parity and Stage
-3.9B source recipes import the new owners directly. R4 consolidates algorithm
-strategies, selection and shared optimization services under one package, but
-leaves `problem.evaluator.dense` adaptive/cache/counter orchestration unchanged;
-no old-checkpoint reader is introduced.
+Avoid duplicate implementations and blanket compatibility layers. Issue #129
+removes the seven-variable `core.hybrid.response` and the `problem.hybrid`
+compatibility import after moving canonicalization verification to
+`design.space`; the independent `problem.released_dms` T0 parity reference
+remains. The 92-case Q1-A golden is verified through `design.space` and the
+physics-free `design.canonicalization` leaf. DMS reference-grid, material-provider,
+and initial-design helpers remain for numerical parity coverage; the historical
+DMS screening executor and Stage 3.9B source-reconstruction workflow do not.
+The current R2 deterministic parity recipe imports the new owners directly. R4
+consolidates algorithm strategies, selection and shared optimization services
+under one package, leaves `problem.evaluator.dense` adaptive/cache/counter
+orchestration unchanged, and Issue #129 removes the single-file historical
+checkpoint fallback while preserving rolling checkpoint/RNG state.
 
 ## Current → target responsibility map
 
 | Current code (exists) | Current role / observed coupling | Target owner (future) |
 |---|---|---|
 | `src/sawopt/physics/com.py`, `network.py`, `literature_com.py`; former `src/sawopt/core/models.py` | R2 owns COM P-matrix propagation/global acoustic solve, COM providers and result record, and the real-positive-port network evaluator. R3 moves the complete provider-visible `FilterDesign` record and decoder to `design.space`, updates current callers, and removes the duplicate `core.models` module. | Physics remains in `physics/`; design records/decoding in `design/`, response and RF metrics in `evaluation.py`. |
-| `src/sawopt/physics/elements.py`; `src/sawopt/core/hybrid.py` | R2 owns reusable acoustic-section, IDT-port, one-port resonator, parallel-track, and electrical nodal composition in `physics/`. The seven-variable-root `core.hybrid.response` and its live `studies.hybrid`/test callers are expressly retained as operational legacy evidence; it is not the new canonical evaluator. | Reusable physical composition in `physics/`; new design ownership in `design/`. `core.hybrid.response` remains until an R6 disposition after replacement/evidence review. |
 | Former `src/sawopt/core/metrics.py` | Legacy owner of frequency grids, response metrics, geometry and a scalar search surrogate; candidate comparison is separately owned by `optimization.selection`. R3 moves callers and removes the duplicate module. | Pure geometry to `design.geometry`; grids/metrics/feasibility and the unchanged scalar surrogate to `evaluation.py`. |
-| Former `src/sawopt/problem/design_space.py`, `dms_topologies.py`, `validation.py`; current `released_dms.py`, `hybrid.py`, `evaluator.py` | Mixed design/topology/geometry/evaluation responsibilities; `problem.evaluator.dense` owns adaptive/cache/counter orchestration. R3 moves design/geometry/evaluation owners and removes the duplicated mixed modules. `ReleasedFilterDesign` / `simulate_released_filter` remain exclusively as T0 parity evidence; ordinary T0 design/evaluation now uses `design.topology.ThreeIdtDesign` and the generalized evaluator. `problem.hybrid` remains only for the Q1-A public golden import path. | Pure records/spaces/canonicalization/geometry to `design/`; one-design response and metrics to `evaluation.py`. Preserve the `problem.evaluator.dense` adaptive/cache/counter orchestration and behavior for explicit R4 follow-up; the point-response dependency now delegates to evaluation. Released DMS code remains parity-only. |
+| `src/sawopt/problem/evaluator.py`; `src/sawopt/problem/released_dms.py` | `dense` remains the adaptive/cache/counter orchestration boundary called by `optimization.runner`; `released_dms.py` remains an independent T0 parity reference. The `problem.hybrid` compatibility alias is removed. | Preserve `problem.evaluator.dense` and released-DMS parity behavior; canonical design and reusable response/evaluation remain owned by `design/`, `physics/`, and `evaluation.py`. |
 | `src/sawopt/optimization/` | After the Issue #67 source consolidation, owns L-SHADE/SciPy-DE strategies, the sole comparator, shared budget/cache/accounting/runner services, and the backend-specific checkpoint session. The separate `optimizers/` package is retired; overlapping polish APIs are owned here. | Keep the unified strategy/service owner; preserve `problem.evaluator.dense` as the deferred orchestration boundary and IO as durable checkpoint-store owner. |
-| `src/sawopt/io/` | Config, serialization, legacy run stores, provenance, checkpoints and lifecycle. Issue #69 adds the separate future-only `io.experiment_store` API; Issue #80 adds `io.synthetic_task_ledger` for one isolated synthetic countdown worker, not a raw store or scientific-run ledger. Neither reinterprets legacy manifests or wires a research runner. | `io/` config/results/checkpoint and external raw ownership; the Issue #80 ledger remains synthetic-only and local to an explicit private test root. |
-| `src/sawopt/studies/` | Live adapters, historical audits, stage-specific studies, Q1-A foundation. | Config-driven experiment inputs and only thin reusable orchestration; retire stage-specific runtime after explicit disposition. |
-| `src/sawopt/reporting/` | Historical/ad-hoc reports, ZIP bundles, integrity, and R5 `reporting.experiment_review`. Issue #124 removes the old schema-v1–v4 `github_review` exporter; retained ZIP/report helpers have independent callers and tests. | Compact R5 review export remains separate from historical reporting; plots in `plotting.py`; retain no agent coupling. |
+| `src/sawopt/io/` | Serialization, retained run/checkpoint services, provenance, future-only `io.experiment_store`, and the isolated Issue #80 `io.synthetic_task_ledger`. Issue #129 removes the old study YAML loader; neither R5 storage nor the task ledger wires a research runner or reinterprets a legacy manifest. | Keep current checkpoint and external raw ownership; the countdown ledger remains synthetic-only and local to an explicit private test root. |
+| `src/sawopt/studies/` | Q1-A under `stage5a2/` and reusable DMS reference/grid/provider/initial-design helpers in `dms_topology_common.py` remain. Historical Stage 3/4 executors, DMS screening runtime, and Stage 3.9B/5A-1 audits are removed under Issue #129. | Keep Q1-A identity/canonicalization/RNG/journal/initialization and DMS reference parity unchanged; no retired study runner/audit API remains. |
+| `src/sawopt/reporting/` | R5 `experiment_review` and the material-profile metadata helper used by DMS reference code remain. Old saved-run reports, Stage 4 candidate-integrity adapters, material HTML rendering, and ZIP review workflows are removed with exclusive callers/tests. | Keep R5 schema v1 and DMS metadata semantics unchanged; historical reports remain immutable records, not executable pipelines. |
 | `src/sawopt/orchestration/`, `runtime/` | Issue #128 removes the legacy schema-v1–v4 run status/publication readers and writers, active-run registry, administrative closeout, and their manifest models. The standalone worktree auditor and persistent-path validation remain; they do not inventory external runs. | Keep only current independent safety behavior; do not restore legacy status/publication/closeout APIs or imply active-run detection. |
 | `src/sawopt/cli.py`; retired `src/sawopt/__main__.py` | The `sawopt` console entry point and `python -m sawopt.cli` provide strict synthetic config validation/run through injected response metrics, optimizer, and R5 storage/export. Issue #80 adds only an explicit Linux/WSL2 `synthetic-task launch/status/attach/stop` group using the isolated countdown worker/SQLite ledger. Issue #124 removes `python -m sawopt` and its old `export-review` capability; this is not an alias or migration to R5. | Keep the new paths synthetic/injected-only; the task ledger is not scientific task/optimizer resume. Preserve R5 schema v1 and keep old reports/data immutable. |
 
@@ -104,10 +112,11 @@ These are the pre-R2 software dependencies, not proof that a module is dead.
 The R2 extraction now has `physics.elements → physics.com`; the other physics
 modules import only external numerical libraries or standard-library modules.
 `problem.evaluator.dense` still uses optimization cache/adaptive-frequency and
-counter services by the explicit R3/R4 disposition. Studies/reporting/
-orchestration retain legacy runtime cycles for later stages. The architecture
-refactor must move ownership and invert dependencies intentionally; renaming
-directories alone will not meet the target.
+counter services by the explicit R3/R4 disposition. Issue #129 removes old
+study execution and report/export pipelines rather than retaining callable
+compatibility paths. The narrow DMS material-profile metadata helper remains
+for the retained reference utilities. The standalone worktree/path safety
+implementation remains independent and does not expose a study runner.
 
 R2–R5 and the authorized synthetic/mock R6 increments are merged. R3's
 ownership choices and evidence-only dispositions are explicit in the [R3
@@ -132,14 +141,13 @@ semantics, or run conditions.
 
 ## Q1-A implementation and evidence boundary
 
-Q1-A code currently lives under `studies/stage5a2/` and a shared
+Q1-A code currently lives under `studies/stage5a2/` and the shared
 `design/canonicalization.py` leaf. Its work unit is closed as
-`WORK_UNIT_READY`, but no formal Q1 gate passed. The target design removes
-stage-specific runtime folders; it does **not** decide whether Q1-A source is
-to be replaced, retired, or reused. R3 preserves the 92-case Q1-A public/leaf
-golden corpus and the canonicalizer's exact behavior; the legacy public import
-surface remains only for its explicit verifier/capture callers. The explicit
-contract disposition and owner decision boundary are in
+`WORK_UNIT_READY`, but no formal Q1 gate passed. The stage-specific foundation
+and exact 92-case golden corpus remain; the removed `problem.hybrid` alias is
+replaced in verification by the canonical `design.space` API, with the leaf
+also checked directly. The explicit contract disposition and owner decision
+boundary are in
 [Q1 contract disposition](plans/restructure_q1_contract_disposition_20261022.md).
 Do not begin Q1-B/C/D/E or claim the existing foundation is generally
 production-qualified.

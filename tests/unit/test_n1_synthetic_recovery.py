@@ -90,19 +90,17 @@ def _evaluator(config, request, journal, attempt_id, calls, *, failure=None):
     return evaluate
 
 
-def _session(raw_run, *, resume):
+def _session(raw_run):
     return LShadeCheckpointSession(
         raw_run.path / "checkpoints" / "n1",
         run_directory=raw_run.path,
-        legacy_path=raw_run.path / "legacy-checkpoint.json",
-        resume=resume,
     )
 
 
 def _checkpoint(raw_run, journal, request, attempt_id, backend, *, fail_write=False):
     raw_run.checkpoint_store("n1")  # Register this existing checkpoint stream with R5.
     receipt = journal.checkpoint_intent(request["run_id"], attempt_id, backend.state_dict())
-    session = _session(raw_run, resume=False)
+    session = _session(raw_run)
     if fail_write:
         original_write = session.store.write
 
@@ -128,7 +126,7 @@ def _checkpoint(raw_run, journal, request, attempt_id, backend, *, fail_write=Fa
 
 def _load_checkpoint(config, raw_run, journal, request):
     backend = _backend(config)
-    session = _session(raw_run, resume=True)
+    session = _session(raw_run)
     loaded = session.store.load_state(
         validator=lambda state: session._validate(backend, state),
         preflight_validator=validate_lshade_checkpoint_header,
@@ -395,7 +393,7 @@ def test_checkpoint_replace_with_lost_journal_ack_reconciles_exact_payload(tmp_p
     backend.initialize(_evaluator(config, request, journal, attempt_id, calls))
     raw_run.checkpoint_store("n1")
     receipt = journal.checkpoint_intent(request["run_id"], attempt_id, backend.state_dict())
-    session = _session(raw_run, resume=False)
+    session = _session(raw_run)
     session.save(backend, extra_state={"n1_receipt": receipt})
     payload = json.loads(session.store.latest_path.read_text(encoding="utf-8"))
     reconciled = journal.reconcile_checkpoint(request["run_id"], payload, digest(payload))

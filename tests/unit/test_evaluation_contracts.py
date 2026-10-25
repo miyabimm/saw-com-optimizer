@@ -9,7 +9,6 @@ import yaml
 from sawopt.design.space import FilterDesign
 from sawopt.design.topology import FiveIdtDesign, ParallelThreeIdtDesign, T1, T2
 from sawopt.evaluation import evaluate_design, report_grid, search_grid, simulate_topology, validation_grid
-from sawopt.io.config import load_experiment_config
 from sawopt.physics.com import FixedProvider
 
 
@@ -21,11 +20,13 @@ def _array_sha256(values, dtype):
     return hashlib.sha256(array.tobytes()).hexdigest()
 
 
-def test_frozen_stage4c_search_grid_and_separate_validation_report_grids():
-    cfg = load_experiment_config(ROOT / "configs/studies/hybrid_stage4c_confirmatory.yaml")
-    search = search_grid(cfg["spec"], cfg)
-    validation = validation_grid(cfg["spec"], cfg)
-    report = report_grid(cfg["spec"], cfg)
+def test_frozen_search_grid_and_separate_validation_report_grids():
+    # Retain the frozen grid contract without loading a retired study config.
+    baseline = yaml.safe_load((ROOT / "configs/base/b28_dms_baseline.yaml").read_text())
+    spec = baseline["spec"]
+    search = search_grid(spec)
+    validation = validation_grid(spec)
+    report = report_grid(spec)
 
     assert len(search) == 1001
     assert _array_sha256(search, "<f8") == (

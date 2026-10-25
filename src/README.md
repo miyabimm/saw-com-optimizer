@@ -1,14 +1,18 @@
 # Python source layout (current status)
 
 The current ownership map and dependency rules are maintained in
-[`docs/architecture.md`](../docs/architecture.md). The package currently
-contains the extracted `physics/`, `design/`, `evaluation.py`, and unified
-`optimization/` owners, alongside legacy study, orchestration, IO, and report
-paths whose individual disposition is tracked under R6.
+[`docs/architecture.md`](../docs/architecture.md). Reusable COM and network
+physics live under `sawopt.physics`; design/topology/canonicalization under
+`sawopt.design`; response and metrics under `sawopt.evaluation`; and optimizer,
+accounting, RNG, and rolling checkpoint services under `sawopt.optimization`.
 
-The new `sawopt.cli` is synthetic/injected-only during R6. The older
-`__main__.py`, stage-specific study callers, and safety/process helpers are not
-implicitly retired by the new entry point; see
-[`docs/plans/restructure_r6_ownership_20261023.md`](../docs/plans/restructure_r6_ownership_20261023.md)
-for their caller and evidence disposition. Do not treat this file as an
-independent architecture plan.
+The supported user CLI is the synthetic/injected-only `sawopt` command and
+`python -m sawopt.cli`. R5 raw/review APIs are future-only. Stage 3/4 study
+executors, historical audits, old report/ZIP pipelines, the legacy study YAML
+loader, and their compatibility imports were removed by Issue #129. Retained
+DMS reference/grid/provider helpers live in `sawopt.studies.dms_topology_common`
+with the independent `sawopt.problem.released_dms` parity reference; neither is
+a study runner. The Q1-A foundation remains under `sawopt.studies.stage5a2`; its
+92-case canonicalization golden is checked through `sawopt.design.space` and
+the pure leaf API. Independent worktree/path safety utilities and the bounded
+synthetic task worker remain separate from scientific execution.

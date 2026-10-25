@@ -71,8 +71,11 @@ The Stage 4C topology-selection outcome remains unresolved; the former Stage
 R5 review packages use the schema and paths in
 [`../experiments.md`](../experiments.md). Package integrity and
 `READY_FOR_REVIEW` are not scientific acceptance. Keep historical Stage 4B/4C
-reports, raw data, checkpoints, configurations, and source identities as
-immutable evidence; do not migrate or repair them in this workflow.
+reports, raw data, checkpoints, run manifests, recorded scientific conditions,
+and source identities immutable; do not migrate
+or repair them in this workflow. The authorized software-only retirement may
+remove obsolete tracked execution templates named in Issue #129, but it does
+not rewrite a frozen run configuration or historical evidence.
 
 ## Retired procedures
 

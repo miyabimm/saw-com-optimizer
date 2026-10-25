@@ -1,25 +1,31 @@
-# テスト構成
+# Test layout
 
-- `unit/core/`: COM、ネットワーク、ラダー回路、数値回帰
-- `unit/optimization/`: 探索ポリシー、適応周波数、キャッシュ、目的関数
-- `integration/`: run再開、試行オーケストレーション、レポート連携
+- `unit/physics/`, `unit/design/`, `unit/evaluation/`, and retained `unit/core/`
+  coverage: current COM/network, topology, canonical design, evaluation, and
+  material-profile/composition regressions.
+- `unit/problem/test_dms_topologies.py`: fixed-input DMS topology identities,
+  reference parity, and numerical metrics; it does not launch a study.
+- `unit/optimization/`: search strategy, adaptive-frequency, cache, unique-FE,
+  accounting, and rolling checkpoint behavior.
+- `unit/io/`, `unit/reporting/`: checkpoint, R5 external-store and review-package
+  contracts.
+- `unit/studies/test_stage5a2_foundation.py`: Q1-A software foundation and the
+  frozen 92-case canonicalization golden; it does not pass a formal Q1 gate.
+- `unit/orchestration/` and synthetic-task tests: bounded synthetic Worker and
+  independent path/worktree safety; no historical study lifecycle.
+- `integration/`: synthetic CLI and test-owned synthetic recovery fixtures.
 
-正式環境はWSL2 Ubuntu 24.04上のUbuntu system Python 3.12＋uvです。
-新しいworktreeのルートで依存関係を同期し、プロジェクトのテストを実行します。
+Official validation uses the project-locked environment:
 
 ```bash
 uv sync --locked --extra test
 uv run --locked pytest
 ```
 
-各worktree直下の`.venv`はuvが自動生成・管理します。手動での仮想環境作成や
-activateは不要です。WindowsネイティブPowerShellは正式なテスト実行手順ではありません。
-将来の R5 review package は
-`reports/experiments/<experiment_id>/<run_id>/`を使います。これは合成 CLI でのみ
-検証済みの future-only schema であり、本番運用の許可ではありません。旧
-`reports/experiment_reviews/<stage>/<run_id>/` の資料は変更しない歴史的証拠です。
-旧 `export-review` エクスポータは Issue #124 で撤去されました。ZIP bundle utility は
-既存コード用に残っていますが、saved-run へのアクセスには別途明示的な許可が必要です。
-環境と証拠保存の詳細は、[開発環境ガイド](../docs/guides/development_environment.md)、
-[レビュー方針](../docs/guides/data_storage_logging_review_policy.md)、
-[review bundleガイド](../docs/guides/review_bundles.md)を参照してください。
+The current CLI is synthetic-only. Historical Stage 3/4 execution, saved-run
+reporting/ZIP workflows, and their exclusive tests were retired under Issue
+#129; historical reports and source/evidence identities remain unchanged.
+R5 output under `reports/experiments/<experiment_id>/<run_id>/` is a future-only
+schema verified with synthetic fixtures, not production approval. See
+[`docs/experiments.md`](../docs/experiments.md) and
+[`docs/development.md`](../docs/development.md).

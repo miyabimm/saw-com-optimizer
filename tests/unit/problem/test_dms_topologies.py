@@ -1,23 +1,43 @@
 import unittest
 from dataclasses import fields
+from pathlib import Path
 
 import numpy as np
+import yaml
 
 from sawopt.design.geometry import geometry
 from sawopt.evaluation import measure, search_grid, simulate_topology
 from sawopt.physics.network import evaluate
-from sawopt.io.config import load_experiment_config
 from sawopt.design import topology as canonical
 from sawopt.design.topology import ThreeIdtDesign
 from sawopt.problem.released_dms import ReleasedFilterDesign, simulate_released_filter
-from sawopt.studies.dms_topology_common import decode_design, initial_design, provider_for_material
+from sawopt.studies.dms_topology_common import (
+    decode_design, initial_design, load_common_validation_grid, provider_for_material,
+)
+
+
+ROOT = Path(__file__).resolve().parents[3]
 
 
 def _current_config():
-    return load_experiment_config("configs/studies/dms_topology_screening.yaml")
+    base = yaml.safe_load((ROOT / "configs/base/b28_dms_baseline.yaml").read_text())
+    dms = yaml.safe_load((ROOT / "configs/studies/dms_topology_screening.yaml").read_text())
+    base.update({key: value for key, value in dms.items() if key != "base_config"})
+    base["com"] = yaml.safe_load((ROOT / "configs/models/com_params_hypothetical.yaml").read_text())
+    return base
 
 
 class DmsTopologyParity(unittest.TestCase):
+    def test_retained_validation_grid_matches_its_immutable_identity(self):
+        cfg = _current_config()
+        grid, grid_id, _metadata_path, metadata = load_common_validation_grid(cfg)
+        self.assertEqual(len(grid), 9113)
+        self.assertEqual(metadata["frequency_count"], len(grid))
+        self.assertEqual(
+            grid_id, "2e24c4ce3f96c38baba44dc83bc60f95954a6b677cb2a37d63078e78c4cea42f",
+        )
+        self.assertEqual(grid_id, metadata["grid_id"])
+
     def test_t0_decoder_uses_design_owned_record_with_legacy_geometry(self):
         cfg = _current_config()
         vector = [5.0, 24.0, 16.0, 40.0, .5, .5, 80.0, 5.2, 4.9]
@@ -48,14 +68,6 @@ class DmsTopologyParity(unittest.TestCase):
         np.testing.assert_allclose(
             generalized.y_parameters, parity_reference.y_parameters, rtol=1e-10, atol=1e-12,
         )
-
-    def test_current_topology_exports_are_canonical(self):
-        from sawopt.studies import dms_topology_screening as study
-
-        self.assertIs(study.T0, canonical.T0)
-        self.assertIs(study.T1, canonical.T1)
-        self.assertIs(study.T2, canonical.T2)
-        self.assertIs(study.simulate_topology, simulate_topology)
 
     def test_mlit_reference_design_metrics_regression(self):
         cfg = _current_config()

@@ -5,8 +5,10 @@ import numpy as np
 from sawopt.evaluation import feasibility_objective
 from sawopt.physics.com import CalibratedProvider
 from sawopt.optimization.adaptive_frequency import adaptive_exchange
+from sawopt.optimization.counters import GeometryGateCounters
+from sawopt.optimization.lshade import LShadeBackend
 from sawopt.optimization.population import scaled_population
-from sawopt.studies.hybrid import _canonical_candidate
+from sawopt.optimization.selection import GeometryFirstComparator
 
 
 class SearchPrimitives(unittest.TestCase):
@@ -30,16 +32,56 @@ class SearchPrimitives(unittest.TestCase):
     def test_population_scales_with_dimension(self):
         self.assertEqual([scaled_population(56, n) for n in (7, 10, 13)], [56, 80, 104])
 
+    def test_lshade_unique_budget_preserves_geometry_counter_partition(self):
+        def run(seed):
+            counters = GeometryGateCounters()
+            calls = []
+
+            def evaluator(vector):
+                score = float(np.sum(np.asarray(vector) ** 2))
+                result = {
+                    "evaluation_status": "PHYSICS_EVALUATED", "geometry_valid": True,
+                    "metrics": {"worst_il_db": score}, "violations": {"il": 0.0},
+                    "feasible": True, "max_violation": 0.0, "sum_violation": 0.0,
+                    "objective": score,
+                }
+                calls.append(tuple(vector))
+                counters.observe_search(result, frequency_count=5)
+                return result
+
+            backend = LShadeBackend(
+                np.asarray([[0.0, 1.0], [0.0, 1.0]]), seed=seed,
+                config={
+                    "total_budget": 16, "requested_unique_budget": 16,
+                    "hard_max_budget": 16, "population_schedule_terminal_budget": 16,
+                    "initial_population": 4, "min_population": 4,
+                },
+                integer_indices=(), comparator=GeometryFirstComparator(),
+            )
+            population = np.random.default_rng(seed).uniform(size=(4, 2))
+            backend.set_frequency_grid([1, 2, 3, 4, 5], version=1)
+            backend.initialize(evaluator, population=np.vstack([population, population[0]]))
+            self.assertEqual(backend.summary()["cache_hits"], 1)
+            self.assertEqual(backend.summary()["population_size"], 4)
+            backend.advance_to_unique_budget(16)
+            self.assertEqual(backend.unique_evaluations, 16)
+            self.assertEqual(len(calls), backend.unique_evaluations)
+            self.assertEqual(counters.geometry_rejections + counters.geometry_valid_candidates, 16)
+            self.assertEqual(counters.geometry_valid_candidates, counters.valid_physics_evaluations)
+            self.assertEqual(counters.search_frequency_points, counters.valid_physics_evaluations * 5)
+            self.assertGreater(backend.summary()["generations"], 0)
+            return backend
+
+        left, right = run(20260929), run(20260929)
+        np.testing.assert_array_equal(left.population(), right.population())
+        self.assertEqual(left.incumbent(), right.incumbent())
+        self.assertEqual(left.summary()["unique_evaluations"], 16)
+
     def test_calibrated_provider_does_not_invent_data(self):
         metadata = {key: "documented" for key in CalibratedProvider.REQUIRED_METADATA}
         provider = CalibratedProvider(metadata)
         with self.assertRaises(NotImplementedError):
             provider.parameters("idt", object(), np.array([1.0]))
-
-    def test_hybrid_integer_cache_identity_is_canonical(self):
-        first = np.array([5, 24.1, 16.1, 40.1, .5, .5, 80, 5.1, 15.1, 60])
-        second = np.array([5, 24.4, 16.4, 40.4, .5, .5, 80, 5.1, 15.4, 60])
-        self.assertEqual(_canonical_candidate(first)[3], _canonical_candidate(second)[3])
 
     def test_adaptive_exchange_adds_a_narrow_feature(self):
         initial = np.array([758, 780, 803], float) * 1e6

@@ -35,10 +35,10 @@ forbidden_prefixes = (
     "sawopt.optimization",
     "sawopt.optimizers",
     "sawopt.core",
-    "sawopt.studies.dms_topology_common",
-    "sawopt.studies.hybrid_stage4b",
-    "sawopt.studies.hybrid_stage4c",
     "sawopt.io",
+    "sawopt.studies.dms_topology_common",
+    "sawopt.reporting",
+    "sawopt.cli",
     "sawopt.orchestration",
     "sawopt.runtime",
 )

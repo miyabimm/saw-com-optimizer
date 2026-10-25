@@ -156,7 +156,6 @@ class CompactLShadeHistoryTests(unittest.TestCase):
             split.advance_to_unique_budget(32)
             session = LShadeCheckpointSession(
                 root / "checkpoints", run_directory=root,
-                legacy_path=root / "optimizer_checkpoint.json", resume=False,
             )
             counters = {"physics_attempted_evaluations": 32, "search_frequency_points": 32032}
             session.save(split, extra_state={"geometry_gate_counters": counters})
@@ -164,7 +163,6 @@ class CompactLShadeHistoryTests(unittest.TestCase):
             resumed = LShadeBackend([(0, 1)] * 4, seed=12, config=config, integer_indices=())
             resumed_session = LShadeCheckpointSession(
                 root / "checkpoints", run_directory=root,
-                legacy_path=root / "optimizer_checkpoint.json", resume=True,
             )
             loaded = resumed_session.load(resumed)
             self.assertEqual(

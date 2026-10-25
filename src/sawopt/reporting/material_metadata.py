@@ -7,21 +7,7 @@ the historical ``FilterDesign`` fields.
 """
 from __future__ import annotations
 
-import html
-import json
-from dataclasses import asdict, is_dataclass
-from pathlib import Path
 from typing import Any, Mapping
-
-
-LEGACY_FIELD_SEMANTICS = {
-    "metallization_ratio": (
-        "legacy geometry metadata; not used to generate MLIT COM parameters"
-    ),
-    "thickness_over_lambda": (
-        "legacy geometry metadata; not used to generate MLIT COM parameters"
-    ),
-}
 
 
 def _source_text(source: Mapping[str, Any] | None) -> str:
@@ -42,11 +28,11 @@ def material_profile_metadata(
     com_parameter_source: str | None = None,
     normalization_definition_source: str | None = None,
 ) -> dict[str, Any]:
-    """Return the effective material profile shown in a result/report.
+    """Return material-profile provenance without changing provider behavior.
 
-    ``profile_data`` is the normalized literature YAML mapping.  When it is
-    absent, a backward-compatible M0 record is emitted from the legacy design
-    values.  No provider or solver object is modified.
+    ``profile_data`` is the normalized literature YAML mapping. When it is
+    absent, an M0 provenance record is emitted from the fixed-provider identity.
+    No provider or solver object is modified.
     """
     if profile_data is None:
         effective_h = getattr(design, "thickness_over_lambda", None)
@@ -89,75 +75,4 @@ def material_profile_metadata(
     }
 
 
-def design_metadata(design: Any, profile: Mapping[str, Any]) -> dict[str, Any]:
-    """Build a serializable result metadata block without changing ``design``."""
-    values = asdict(design) if is_dataclass(design) else dict(design)
-    return {
-        "design": values,
-        "design_field_semantics": dict(LEGACY_FIELD_SEMANTICS),
-        "material_profile": dict(profile),
-    }
-
-
-def attach_result_metadata(
-    result: Mapping[str, Any], design: Any, profile: Mapping[str, Any]
-) -> dict[str, Any]:
-    """Return a shallow result copy with metadata attached.
-
-    Arrays and numerical result objects remain untouched; callers can compare
-    the original and returned payloads to prove that this operation is display
-    metadata only.
-    """
-    enriched = dict(result)
-    enriched["metadata"] = design_metadata(design, profile)
-    return enriched
-
-
-def metadata_json_roundtrip(value: Mapping[str, Any]) -> tuple[dict[str, Any], bool]:
-    encoded = json.dumps(value, ensure_ascii=False, sort_keys=True)
-    decoded = json.loads(encoded)
-    return decoded, decoded == dict(value)
-
-
-def render_material_metadata_html(records: Mapping[str, Mapping[str, Any]], path: str | Path) -> Path:
-    """Render a compact report section containing both M0 and MLIT profiles."""
-    cards = []
-    for name, record in records.items():
-        profile = record["material_profile"]
-        design = record["design"]
-        rows = "".join(
-            f"<tr><th>{html.escape(str(key))}</th><td>{html.escape(str(value))}</td></tr>"
-            for key, value in profile.items()
-        )
-        cards.append(
-            f"<section><h2>{html.escape(str(name))}</h2>"
-            "<h3>Effective material profile</h3>"
-            f"<table>{rows}</table>"
-            "<h3>Legacy design fields</h3>"
-            f"<pre>{html.escape(json.dumps({k: design.get(k) for k in LEGACY_FIELD_SEMANTICS}, indent=2))}</pre>"
-            "<p>legacy design field; not used to generate MLIT COM parameters "
-            "when the effective profile is MLIT.</p></section>"
-        )
-    page = (
-        "<!doctype html><html><head><meta charset='utf-8'><title>Material metadata</title>"
-        "<style>body{font-family: sans-serif;max-width:1000px;margin:2rem auto}"
-        "table{border-collapse:collapse}th,td{border:1px solid #bbb;padding:.35rem;text-align:left}"
-        "section{margin-bottom:2rem}</style></head><body>"
-        "<h1>Material metadata display</h1>"
-        + "".join(cards)
-        + "</body></html>"
-    )
-    output = Path(path)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(page, encoding="utf-8")
-    return output
-
-
-__all__ = [
-    "LEGACY_FIELD_SEMANTICS",
-    "attach_result_metadata",
-    "design_metadata",
-    "material_profile_metadata",
-    "metadata_json_roundtrip",
-    "render_material_metadata_html",
-]
+__all__ = ["material_profile_metadata"]

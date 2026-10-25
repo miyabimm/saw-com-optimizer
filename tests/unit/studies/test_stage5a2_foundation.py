@@ -324,9 +324,9 @@ class _MemoryJournal:
         return SimpleNamespace(event_hash=_digest(event_id))
 
 
-def test_legacy_golden_public_delegate_and_leaf_exactly_match_in_fresh_processes():
+def test_canonical_design_api_and_leaf_preserve_all_92_golden_cases():
     verifier = ROOT / "scripts/verify_stage5a2_canonicalization_golden.py"
-    for mode in ("public", "leaf"):
+    for mode in ("design", "leaf"):
         result = subprocess.run(
             [sys.executable, str(verifier), "--mode", mode], cwd=ROOT,
             check=True, capture_output=True, text=True,

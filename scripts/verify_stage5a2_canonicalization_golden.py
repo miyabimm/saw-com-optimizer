@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Compare the frozen pre-extraction corpus with a public or leaf API.
-
-The ``public`` mode is an isolated legacy-path characterization and invokes
-only ``HybridDesignSpace.canonicalize``. The ``leaf`` mode imports only the
-physics-free design leaf.
-"""
+"""Compare the frozen 92-case corpus through canonical and leaf design APIs."""
 from __future__ import annotations
 
 import argparse
@@ -34,10 +29,8 @@ def _bits(value: float) -> str:
 
 
 def _call(mode, topology, vector, bounds, integer_indices):
-    if mode == "public":
-        # This process intentionally uses the old public import path. The only
-        # method invoked is canonicalize; no decoder/provider/evaluator runs.
-        from sawopt.problem.hybrid import HybridDesignSpace
+    if mode == "design":
+        from sawopt.design.space import HybridDesignSpace
 
         return HybridDesignSpace(topology, bounds, tuple(integer_indices)).canonicalize(vector)
     if mode == "leaf":
@@ -52,7 +45,7 @@ def _call(mode, topology, vector, bounds, integer_indices):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=("public", "leaf"), required=True)
+    parser.add_argument("--mode", choices=("design", "leaf"), required=True)
     args = parser.parse_args()
     corpus_bytes = FIXTURE.read_bytes()
     corpus = json.loads(corpus_bytes)
