@@ -119,6 +119,49 @@ def test_detached_synthetic_child_survives_cli_and_fresh_attach_observes_progres
     assert (root / "synthetic-tasks.log").stat().st_size <= 16 * 1024
 
 
+def test_detached_synthetic_task_completes_when_pi_is_unavailable(tmp_path):
+    root = _root(tmp_path)
+    no_pi_bin = tmp_path / "no-pi-executable"
+    no_pi_bin.mkdir(mode=0o700)
+    environment = {**os.environ, "PATH": str(no_pi_bin), "PI_OFFLINE": "1"}
+    launch = subprocess.run(
+        [
+            *CLI, "launch", "--root", str(root), "--idempotency-key", "pi-unavailable-test",
+            "--steps", "1", "--interval-ms", "10",
+        ],
+        cwd=ROOT,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=20,
+        env=environment,
+    )
+    launched = json.loads(launch.stdout)
+    assert launched["synthetic_only"] is True
+    run_id = launched["run_id"]
+    deadline = time.monotonic() + 20
+    status = None
+    while time.monotonic() < deadline:
+        observed = subprocess.run(
+            [*CLI, "status", "--root", str(root), "--run-id", run_id],
+            cwd=ROOT,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=10,
+            env=environment,
+        )
+        status = json.loads(observed.stdout)
+        if status["state"] in {"COMPLETED", "FAILED", "RECOVERY_REQUIRED"}:
+            break
+        time.sleep(0.02)
+
+    assert status is not None and status["state"] == "COMPLETED"
+    assert status["progress_completed"] == status["progress_total"] == 1
+
+
 def test_concurrent_same_idempotency_request_has_one_task_and_conflict_on_change(tmp_path):
     root = _root(tmp_path)
     command = [
