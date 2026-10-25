@@ -13,7 +13,7 @@ PR #120. Issue #119 removed the legacy scientific CLI and detached
 orchestration launch/worker. Issue #124 retired the schema-v1–v4 `export-review` dispatcher and GitHub
 exporter. Issue #128 removes the remaining legacy v1–v4 orchestration
 status/publication/closeout and active-run registry lifecycle; R5 and the
-independent worktree/path/PID safety tools remain separate. Other C2B cleanup
+independent worktree/path safety tools remain separate. Other C2B cleanup
 and R7 remain separate gates.
 The former Stage4B fingerprint reconstruction stop gate in Issue #106 is
 superseded; the frozen fingerprint, source commit, and reports remain historical
@@ -82,7 +82,7 @@ no old-checkpoint reader is introduced.
 | `src/sawopt/io/` | Config, serialization, legacy run stores, provenance, checkpoints and lifecycle. Issue #69 adds the separate future-only `io.experiment_store` API; Issue #80 adds `io.synthetic_task_ledger` for one isolated synthetic countdown worker, not a raw store or scientific-run ledger. Neither reinterprets legacy manifests or wires a research runner. | `io/` config/results/checkpoint and external raw ownership; the Issue #80 ledger remains synthetic-only and local to an explicit private test root. |
 | `src/sawopt/studies/` | Live adapters, historical audits, stage-specific studies, Q1-A foundation. | Config-driven experiment inputs and only thin reusable orchestration; retire stage-specific runtime after explicit disposition. |
 | `src/sawopt/reporting/` | Historical/ad-hoc reports, ZIP bundles, integrity, and R5 `reporting.experiment_review`. Issue #124 removes the old schema-v1–v4 `github_review` exporter; retained ZIP/report helpers have independent callers and tests. | Compact R5 review export remains separate from historical reporting; plots in `plotting.py`; retain no agent coupling. |
-| `src/sawopt/orchestration/`, `runtime/` | Issue #128 removes the legacy schema-v1–v4 run status/publication readers and writers, active-run registry, administrative closeout, and their manifest models. The standalone worktree auditor and persistent-path/PID safety helpers remain; they do not inventory external runs. | Keep only current independent safety behavior; do not restore legacy status/publication/closeout APIs or imply active-run detection. |
+| `src/sawopt/orchestration/`, `runtime/` | Issue #128 removes the legacy schema-v1–v4 run status/publication readers and writers, active-run registry, administrative closeout, and their manifest models. The standalone worktree auditor and persistent-path validation remain; they do not inventory external runs. | Keep only current independent safety behavior; do not restore legacy status/publication/closeout APIs or imply active-run detection. |
 | `src/sawopt/cli.py`; retired `src/sawopt/__main__.py` | The `sawopt` console entry point and `python -m sawopt.cli` provide strict synthetic config validation/run through injected response metrics, optimizer, and R5 storage/export. Issue #80 adds only an explicit Linux/WSL2 `synthetic-task launch/status/attach/stop` group using the isolated countdown worker/SQLite ledger. Issue #124 removes `python -m sawopt` and its old `export-review` capability; this is not an alias or migration to R5. | Keep the new paths synthetic/injected-only; the task ledger is not scientific task/optimizer resume. Preserve R5 schema v1 and keep old reports/data immutable. |
 
 The concrete inventory, module list, configs/tests, and observed package edges
@@ -122,7 +122,7 @@ Stage 4C execution and qualification tools; and Issue #119 removed the old
 scientific CLI and detached orchestration launch/worker. Issue #124 then
 retired the old schema-v1–v4 `export-review` path and exporter; this does not
 remove existing review evidence or the separate R5 exporter. Independently
-used worktree, persistent-path, and PID safety responsibilities remain, but
+used worktree and persistent-path safety responsibilities remain, but
 they do not enumerate active runs or process state. The [R7 audit
 proposal](plans/r7_architecture_ci_audit_20261023.md) records owner decisions
 and is not authorization for unrelated cleanup. Each stage remains a separate

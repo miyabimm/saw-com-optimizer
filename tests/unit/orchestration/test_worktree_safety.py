@@ -1,8 +1,9 @@
-import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -200,17 +201,56 @@ class WorktreeSafetyTests(unittest.TestCase):
         self.assertEqual(audit.classification, "FAIL_PRIMARY_WORKTREE_IDENTITY_UNKNOWN")
         self.assertFalse(audit.deletion_allowed)
 
-    def test_stale_worktree_safety_lock_is_reclaimed(self):
-        common = worktree_safety.git_common_dir(self.repository)
-        lock = common / worktree_safety.LOCK_NAME
-        lock.write_text(json.dumps({
-            "pid": 99999999,
-            "created_at": "2000-01-01T00:00:00+00:00",
-            "hostname": "dead-host",
-        }), encoding="utf-8")
-
-        self.assertTrue(self.audit().deletion_allowed)
-        self.assertFalse(lock.exists())
+    def test_kernel_lock_serializes_competing_processes_and_survives_release(self):
+        first_entered = self.base / "first-entered"
+        release_first = self.base / "release-first"
+        second_entered = self.base / "second-entered"
+        first_script = """
+import sys, time
+from pathlib import Path
+from sawopt.orchestration.worktree_safety import worktree_safety_lock
+root, entered, release = map(Path, sys.argv[1:])
+with worktree_safety_lock(root):
+    entered.write_text("locked")
+    deadline = time.monotonic() + 10
+    while not release.exists() and time.monotonic() < deadline:
+        time.sleep(0.01)
+"""
+        second_script = """
+import sys
+from pathlib import Path
+from sawopt.orchestration.worktree_safety import worktree_safety_lock
+root, entered = map(Path, sys.argv[1:])
+with worktree_safety_lock(root):
+    entered.write_text("locked")
+"""
+        first = subprocess.Popen([
+            sys.executable, "-c", first_script, str(self.repository),
+            str(first_entered), str(release_first),
+        ], cwd=self.repository)
+        second = None
+        try:
+            deadline = time.monotonic() + 5
+            while not first_entered.exists() and first.poll() is None and time.monotonic() < deadline:
+                time.sleep(0.01)
+            self.assertTrue(first_entered.exists())
+            second = subprocess.Popen([
+                sys.executable, "-c", second_script, str(self.repository), str(second_entered),
+            ], cwd=self.repository)
+            time.sleep(0.1)
+            self.assertFalse(second_entered.exists())
+            release_first.write_text("release")
+            first.wait(timeout=5)
+            second.wait(timeout=5)
+            self.assertTrue(second_entered.exists())
+            lock = worktree_safety.git_common_dir(self.repository) / worktree_safety.LOCK_NAME
+            self.assertTrue(lock.is_file())
+        finally:
+            release_first.touch(exist_ok=True)
+            for process in (first, second):
+                if process is not None and process.poll() is None:
+                    process.terminate()
+                    process.wait(timeout=5)
 
     def test_clean_removal_uses_git_and_verifies_both_postconditions(self):
         result = worktree_safety.remove_worktree(self.worktree, repository_root=self.repository)

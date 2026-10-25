@@ -3,18 +3,14 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path, PureWindowsPath
 import shutil
-import socket
 import stat
 import subprocess
 import time
 from typing import Any, Iterator
-
-from .pid_utils import pid_exists
 
 
 @dataclass(frozen=True)
@@ -59,7 +55,6 @@ class WorktreeRemoval:
 PROTECTED_COMPONENTS = {
     "runs", "checkpoint", "checkpoints", "logs", ".pytest-tmp", ".pytest_cache",
 }
-LOCK_STALE_AFTER_S = 300.0
 LOCK_NAME = ".sawopt-worktree-safety.lock"
 
 
@@ -79,87 +74,51 @@ def git_common_dir(repository_root: str | Path) -> Path:
     return common.resolve(strict=True)
 
 
-def _read_lock_metadata(path: Path) -> dict[str, Any] | None:
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError, TypeError):
-        return None
-    return value if isinstance(value, dict) else None
-
-
-def _lock_age_s(path: Path, metadata: dict[str, Any] | None) -> float:
-    created_at = metadata.get("created_at") if metadata else None
-    if created_at:
-        try:
-            created = datetime.fromisoformat(str(created_at))
-            if created.tzinfo is None:
-                created = created.replace(tzinfo=timezone.utc)
-            return max(0.0, (datetime.now(timezone.utc) - created).total_seconds())
-        except ValueError:
-            pass
-    try:
-        return max(0.0, time.time() - path.stat().st_mtime)
-    except OSError:
-        return 0.0
-
-
-def _reclaim_stale_lock(path: Path, *, stale_after_s: float) -> bool:
-    metadata = _read_lock_metadata(path)
-    try:
-        owner_pid = int(metadata.get("pid")) if metadata is not None else None
-    except (TypeError, ValueError):
-        owner_pid = None
-    if _lock_age_s(path, metadata) < stale_after_s or pid_exists(owner_pid):
-        return False
-    quarantine = path.with_name(
-        f".{path.name}.stale.{os.getpid()}.{time.monotonic_ns()}"
-    )
-    try:
-        os.replace(path, quarantine)
-    except FileNotFoundError:
-        return True
-    except OSError:
-        return False
-    quarantine.unlink(missing_ok=True)
-    return True
-
-
 @contextmanager
-def _exclusive_lock(
-    path: Path, *, timeout_s: float = 30.0,
-    stale_after_s: float = LOCK_STALE_AFTER_S,
-) -> Iterator[None]:
+def _exclusive_lock(path: Path, *, timeout_s: float = 30.0) -> Iterator[None]:
+    """Acquire a kernel-managed cross-process lock without reclaiming lock files."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    deadline = time.monotonic() + timeout_s
-    descriptor = None
-    while time.monotonic() < deadline:
-        try:
-            descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            metadata = {
-                "pid": os.getpid(),
-                "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                "hostname": socket.gethostname(),
-            }
-            os.write(descriptor, json.dumps(metadata, ensure_ascii=True).encode("utf-8"))
-            os.fsync(descriptor)
-            break
-        except FileExistsError:
-            if not _reclaim_stale_lock(path, stale_after_s=stale_after_s):
-                time.sleep(0.01)
-        except BaseException:
-            if descriptor is not None:
-                os.close(descriptor)
-                path.unlink(missing_ok=True)
-                descriptor = None
-            raise
-    if descriptor is None:
-        raise TimeoutError(f"timed out acquiring lock: {path}")
+    flags = os.O_CREAT | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags, 0o600)
+    acquired = False
     try:
-        yield
+        if os.name == "nt" and os.fstat(descriptor).st_size == 0:
+            os.write(descriptor, b"\x00")
+            os.fsync(descriptor)
+        deadline = time.monotonic() + timeout_s
+        while True:
+            try:
+                if os.name == "nt":
+                    import msvcrt
+
+                    os.lseek(descriptor, 0, os.SEEK_SET)
+                    msvcrt.locking(descriptor, msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+
+                    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                acquired = True
+                break
+            except OSError as exc:
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(f"timed out acquiring lock: {path}") from exc
+                time.sleep(0.01)
+        try:
+            yield
+        finally:
+            if acquired:
+                if os.name == "nt":
+                    import msvcrt
+
+                    os.lseek(descriptor, 0, os.SEEK_SET)
+                    msvcrt.locking(descriptor, msvcrt.LK_UNLCK, 1)
+                else:
+                    import fcntl
+
+                    fcntl.flock(descriptor, fcntl.LOCK_UN)
     finally:
         os.close(descriptor)
-        path.unlink(missing_ok=True)
 
 
 @contextmanager
