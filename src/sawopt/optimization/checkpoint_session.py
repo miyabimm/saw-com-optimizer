@@ -118,20 +118,6 @@ class LShadeCheckpointSession:
                     )
                 except (OSError, UnicodeError, ValueError):
                     include_final = False
-            status = self.store.run_directory / "status.json"
-            if include_final and status.is_file():
-                try:
-                    status_value = json.loads(status.read_text(encoding="utf-8"))
-                    include_final = (
-                        status_value.get("optimizer_state") == RunDisposition.COMPLETED.value
-                        and status_value.get("exit_code") == 0
-                        and status_value.get("state") not in {
-                            RunDisposition.FAILED.value,
-                            RunDisposition.REVIEW_WAITING.value,
-                        }
-                    )
-                except (OSError, UnicodeError, ValueError):
-                    include_final = False
         loaded = self.store.load_state(
             validator=lambda state: self._validate(backend, state),
             preflight_validator=validate_lshade_checkpoint_header,

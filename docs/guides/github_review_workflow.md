@@ -77,13 +77,16 @@ immutable evidence; do not migrate or repair them in this workflow.
 ## Retired procedures
 
 Do not use or recreate the former Codex/C2C queue, callback, `confirm-queue`,
-legacy orchestration launch/resume/recovery, or detached worker procedures.
-The recorded `status` and guarded `mark-review-published` commands remain for
-historical status and publication semantics; administrative closeout and
-independent non-agent safety APIs also remain separately gated and must not be
-used to infer active-run absence or authorize a new run.
+legacy orchestration launch/resume/recovery/worker, status, guarded publication,
+or administrative closeout procedures. Issue #128 removed the historical
+schema-v1–v4 run-status/publication lifecycle and its active-run registry; no
+replacement parser or publisher is provided. R5 `sawopt review export` remains
+a separate future-only package export and does not publish to GitHub or mutate
+legacy run state. The standalone worktree/path safety tools remain, but do not
+inventory external runs or establish active-run absence.
+
 The dated [Issue #108 C1 disposition](../plans/issue108_r6c1_codex_removal_20261024.md)
-records what was removed; the [Issue #111 C2A disposition](../plans/issue111_r6c2a_legacy_surface_disposition_20261024.md)
-records the remaining project-local hook/document cleanup and its explicit
-boundaries. Historical plan text and old manifests are not executable
-instructions or evidence of current support.
+and [Issue #111 C2A disposition](../plans/issue111_r6c2a_legacy_surface_disposition_20261024.md)
+record prior cuts; Issue #128 supersedes their previous statements that legacy
+status/publication/closeout remained supported. Historical plan text and old
+manifests are not executable instructions or evidence of current support.

@@ -110,22 +110,18 @@ the absence of an error status or by a study's scientific gate result. The
 generic lifecycle API supports `COMPLETED`, `REVIEW_WAITING`, `FAILED`, and
 `UNKNOWN`. Missing or unknown disposition retains runtime recovery state.
 
-`COMPLETED` allows a direct CLI run to finalize immediately. An orchestrated
-run finalizes only after its durable optimizer status records successful
-completion and exit code zero. `REVIEW_WAITING`, `FAILED`, and `UNKNOWN` keep
-`latest` and `previous`. Finalization validates and promotes the newest valid
-state to `final.json` before removing runtime and temporary files. Pinned
-states survive finalization.
+`COMPLETED` allows a run to finalize only after its durable
+`metadata/run_completion.json` marker records the explicit successful
+disposition. `REVIEW_WAITING`, `FAILED`, and `UNKNOWN` keep `latest` and
+`previous`. Finalization validates and promotes the newest valid state to
+`final.json` before removing runtime and temporary files. Pinned states survive
+finalization.
 
-The compatibility adapter in `sawopt.io.legacy_lifecycle` maps the historical
-Stage review markers to `REVIEW_WAITING` at legacy entrypoint boundaries. The
-generic checkpoint store does not inspect Stage marker names. New studies
-should supply an explicit disposition and must not add Stage-specific markers
-to the generic checkpoint core. A later closeout after human review requires
-a dedicated reviewed-closeout action that records `COMPLETED` and updates the
-durable optimizer disposition. A historical callback/continuation success or `REVIEWED` marker is a recorded
-value only; it is not current completion evidence and does not authorize raw
-run deletion.
+Stage-specific marker-name translation and the old orchestration status,
+publication, and closeout lifecycle are not part of the current checkpoint
+contract. New studies supply an explicit disposition; the generic checkpoint
+store must not infer completion from a stage marker, old `status.json`, or
+review state.
 
 Direct Python calls to a study function do not imply successful completion.
 Call the shared completion/finalization API only after the study has written

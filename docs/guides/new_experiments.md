@@ -30,9 +30,9 @@ execution and its required closeout artifacts are complete; use
 execution infrastructure validation failed. A scientific gate may finish
 normally with either pass or fail; do not use its result as lifecycle state.
 Missing or ambiguous evidence must remain `UNKNOWN`, which preserves recovery
-checkpoints. Historical marker translation belongs in
-`sawopt.io.legacy_lifecycle`; new studies should not add marker-name checks to
-the checkpoint core.
+checkpoints. Do not infer lifecycle disposition from historical marker names
+or legacy orchestration status files; the checkpoint core accepts only the
+explicit disposition supplied by its caller.
 
 Any future publication adapter needs a separately reviewed owner and contract.
 The old generic `export-review` flow has been removed; R5's compact exporter is
