@@ -23,6 +23,9 @@ These records preserve evidence or define a specific gate; they do not replace
 the five current sources above or independently authorize implementation or
 execution:
 
+- [Issue #146 M0 dependency and caller audit](../reports/restructure/m0_dependency_audit_20261025.md)
+  is a static-only, exact-base inventory and unapproved M1–M4 proposal; it does
+  not authorize source moves/deletions or execution.
 - [Stage 5A-2 Q1 qualification matrix](plans/stage5a2_q1_qualification_matrix.md)
   is the sole formal Q1-01…Q1-23 gate list. The [Q1 execution plan](plans/stage5a2_q1_execution_plan.md)
   describes work-unit dependencies but does not pass a gate or authorize
