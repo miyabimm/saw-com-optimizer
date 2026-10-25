@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -70,6 +71,38 @@ def test_data_root_requires_explicit_absolute_external_location(tmp_path, monkey
     with pytest.raises(RunValidationError, match="worktree|repository"):
         validate_data_root(REPOSITORY_ROOT / "nested-data")
     assert not (REPOSITORY_ROOT / "nested-data").exists()
+
+
+def test_data_root_rejects_linked_worktree(tmp_path, monkeypatch):
+    from sawopt.io import experiment_store
+
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    package_dir = repository / "src" / "sawopt" / "io"
+    package_dir.mkdir(parents=True)
+    module_path = package_dir / "experiment_store.py"
+    module_path.touch()
+    linked_worktree = tmp_path / "linked-worktree"
+
+    def git(*args):
+        subprocess.run(
+            ["git", *args], cwd=repository, check=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )
+
+    git("init", "-b", "main")
+    git("config", "user.name", "Storage Test")
+    git("config", "user.email", "storage@example.invalid")
+    (repository / "tracked.txt").write_text("fixture\n", encoding="utf-8")
+    git("add", "tracked.txt", "src/sawopt/io/experiment_store.py")
+    git("commit", "-m", "fixture")
+    git("worktree", "add", "--detach", str(linked_worktree), "HEAD")
+    monkeypatch.setattr(experiment_store, "__file__", str(module_path))
+
+    candidate = linked_worktree / "external-data"
+    with pytest.raises(RunValidationError, match="inside a Git worktree"):
+        validate_data_root(candidate)
+    assert not candidate.exists()
 
 
 def test_data_root_reads_explicit_environment_without_creating_missing_root(tmp_path, monkeypatch):

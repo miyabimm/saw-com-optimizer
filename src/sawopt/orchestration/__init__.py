@@ -1,1 +1,1 @@
-"""Independent worktree and persistent-path safety utilities."""
+"""Independent Git worktree safety utilities."""

@@ -14,12 +14,12 @@ for current storage contracts and authorization. For the overview, see
 
 ## Durable run storage
 
-The retained safety implementation validates persistent paths for any
-separately authorized use and audits worktree contents. This does not make a
-retired launch command supported or authorize a new run. Any future R5 store
-use must follow the external `SAWOPT_DATA_ROOT`, containment, identity,
-exclusivity, and fail-closed rules in `experiments.md`; it must not fall back
-to repository `runs/`.
+The legacy persistent run-destination validator was retired with the old
+launcher; no standalone persistent-path validation API is supported. The
+worktree utility audits checkout identity and contents, not external data
+roots. Any future R5 store use must follow the external `SAWOPT_DATA_ROOT`,
+containment, identity, exclusivity, and fail-closed rules in `experiments.md`;
+it must not fall back to repository `runs/`.
 
 Historical `external_persistent_v1` fields and review paths remain immutable
 records, not a current R5 schema or production-run procedure. Do not rewrite,
