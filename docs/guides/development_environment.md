@@ -23,11 +23,12 @@ For normal project commands, use the locked environment:
 ```bash
 uv run --locked pytest
 uv run --locked sawopt --help
-uv run --locked python -m sawopt export-review --help
+uv run --locked python -m sawopt.cli --help
 ```
 
-This general setup instruction does not authorize execution of a scientific
-study. In an already configured environment where dependency synchronization
+Issue #124 retired the old `python -m sawopt export-review` module path; it is
+not an environment or production workflow. This general setup instruction does
+not authorize execution of a scientific study. In an already configured environment where dependency synchronization
 is not approved, do not run `uv sync`; report the missing dependency as a
 validation blocker instead.
 

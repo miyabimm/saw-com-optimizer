@@ -305,10 +305,7 @@ def load_stage4c_context(config_path: str | Path) -> dict[str, Any]:
                                               "src/sawopt/studies/hybrid_stage4c.py",
                                               "src/sawopt/studies/hybrid_stage4b.py",
                                               "src/sawopt/optimization/convergence_evidence.py")))
-    reporting_paths = (
-        "src/sawopt/reporting/hybrid_stage4c.py",
-        "src/sawopt/reporting/github_review.py",
-    )
+    reporting_paths = ("src/sawopt/reporting/hybrid_stage4c.py",)
     fingerprint = build_fingerprint_metadata(
         root, contract, computation_paths=computation_paths,
         reporting_paths=reporting_paths,

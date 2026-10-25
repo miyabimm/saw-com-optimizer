@@ -69,7 +69,7 @@ worktree root:
 uv sync --locked --extra test
 uv run --locked pytest
 uv run --locked sawopt --help
-uv run --locked python -m sawopt export-review --help
+uv run --locked python -m sawopt.cli --help
 ```
 
 Use `uv run --locked` for project commands. Do not install Node or commit

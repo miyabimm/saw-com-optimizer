@@ -384,29 +384,6 @@ def _release_published_active_run(repository_root: Path, manifest: RunManifest) 
     release_active_run(repository_root, run_id=manifest.run_id)
 
 
-def mark_review_exported(run_dir: Path) -> dict[str, Any]:
-    """Record successful deterministic export without changing run state."""
-    root = Path(run_dir).resolve()
-    manifest = load_manifest(root)
-    if manifest.uses_retired_agent_transport:
-        raise RuntimeError("review export state mutation for legacy Codex-linked runs is retired")
-    if manifest.schema_version != 4 or not manifest.review_output_dir:
-        raise ValueError("review export state requires a schema-v4 run")
-    if load_status(root).get("optimizer_state") not in {"COMPLETED", "FAILED"}:
-        raise ValueError("cannot export review evidence before terminal optimizer state")
-    package = (Path(manifest.project_root).resolve() / manifest.review_output_dir).resolve()
-    package.relative_to(Path(manifest.project_root).resolve())
-    if not (package / "review_manifest.json").is_file():
-        raise ValueError("review package manifest is missing")
-    status = load_status(root)
-    if status.get("review_evidence_state") in {"EXPORTED", "PUBLISHED"}:
-        return status
-    return update_status_fields(
-        root, review_evidence_state="EXPORTED", review_output_dir=manifest.review_output_dir,
-        review_exported_at=utc_now(),
-    )
-
-
 def parse_timestamp(value: str | None) -> datetime | None:
     if not value:
         return None
@@ -464,7 +441,7 @@ __all__ = [
     "atomic_write_json", "continuation_delivery_path",
     "exclusive_lock", "format_status", "load_continuation_delivery",
     "load_manifest", "load_status", "lock_owner_pid", "manifest_path",
-    "mark_review_exported", "mark_review_published", "optimizer_completion_path",
+    "mark_review_published", "optimizer_completion_path",
     "read_lock_metadata", "reclaim_stale_lock", "record_optimizer_completion",
     "status_path", "transition", "update_status_fields", "utc_now",
 ]

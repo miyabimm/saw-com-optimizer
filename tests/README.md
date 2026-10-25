@@ -14,10 +14,12 @@ uv run --locked pytest
 
 各worktree直下の`.venv`はuvが自動生成・管理します。手動での仮想環境作成や
 activateは不要です。WindowsネイティブPowerShellは正式なテスト実行手順ではありません。
-新規本番のレビュー証拠は
-`reports/experiment_reviews/<stage>/<run_id>/`に保存します。歴史的・アドホックな
-保存済みrunのreview bundleは`artifacts/review_bundles/`に置けますが、
-新規本番レビューの正規経路ではありません。
+将来の R5 review package は
+`reports/experiments/<experiment_id>/<run_id>/`を使います。これは合成 CLI でのみ
+検証済みの future-only schema であり、本番運用の許可ではありません。旧
+`reports/experiment_reviews/<stage>/<run_id>/` の資料は変更しない歴史的証拠です。
+旧 `export-review` エクスポータは Issue #124 で撤去されました。ZIP bundle utility は
+既存コード用に残っていますが、saved-run へのアクセスには別途明示的な許可が必要です。
 環境と証拠保存の詳細は、[開発環境ガイド](../docs/guides/development_environment.md)、
 [レビュー方針](../docs/guides/data_storage_logging_review_policy.md)、
 [review bundleガイド](../docs/guides/review_bundles.md)を参照してください。

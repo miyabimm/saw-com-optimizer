@@ -95,9 +95,10 @@ $SAWOPT_DATA_ROOT/runs/<experiment_id>/<run_id>/
 ```
 
 The software API is separate in `sawopt.io.experiment_store`; compact export is
-`sawopt.reporting.experiment_review`. These APIs are not wired to the legacy
-CLI or research runners; R6 owns the synthetic/injected vertical slice. The
-raw tree is unsafe against a non-cooperating concurrent writer that changes
+`sawopt.reporting.experiment_review`. Issue #124 retired the separate legacy
+schema-v1–v4 CLI/exporter; R5 is integrated only with the synthetic/injected R6
+CLI slice, not a real research runner. The raw tree is unsafe against a
+non-cooperating concurrent writer that changes
 files during review export; do not claim concurrent-writer safety. A run caller
 can register full cell outputs and logs under `cells/<cell_id>/`, `logs/`,
 `arrays/`, `populations/`, `caches/`, and `replay/`; checkpoint lifecycle files

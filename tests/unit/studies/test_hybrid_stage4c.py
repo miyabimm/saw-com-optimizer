@@ -3,23 +3,18 @@ from __future__ import annotations
 import copy
 import json
 from pathlib import Path
-import subprocess
 
 import pytest
 
 from sawopt.orchestration.persistent_storage import validate_persistent_run_location
-from sawopt.reporting.github_review import ReviewExportError, _canonical_json_sha256, export_review, load_review_spec
 from sawopt.reporting.hybrid_stage4c import (
     MODEL_LEVEL_MATERIALITY_THRESHOLD,
-    STAGE4C_REQUIRED_ARTIFACTS,
     _boundary_rows,
     _checkpoint_rows,
     classify_stage4c,
-    export_stage4c_review,
     paired_comparisons,
     primary_summary,
     stopband_rows,
-    validate_stage4c_review_contract,
     write_stage4c_reports,
 )
 from sawopt.studies import hybrid_stage4c as stage4c
@@ -30,7 +25,6 @@ from sawopt.studies.hybrid_stage4c import (
     COMMON_GRID_ID,
     COMMON_GRID_SHA256,
     PROTOCOL_REVISION,
-    PRODUCTION_RUN_ROOT,
     SEARCH_GRID_SHA256,
     SEEDS,
     STAGE4B_SEEDS,
@@ -142,7 +136,7 @@ def test_stage4c_fingerprint_separates_computation_from_reporting():
     assert "src/sawopt/studies/hybrid_stage4b.py" in computation
     assert "src/sawopt/optimization/lshade.py" in computation
     assert CONFIG in computation
-    assert "src/sawopt/reporting/hybrid_stage4c.py" in reporting
+    assert reporting == {"src/sawopt/reporting/hybrid_stage4c.py"}
     assert "src/sawopt/reporting/hybrid_stage4c.py" not in computation
 
 
@@ -206,154 +200,6 @@ def test_stage4c_external_storage_gate_rejects_repository_local_output(tmp_path)
     )
     assert accepted.passed
     assert not rejected.passed
-
-
-def _synthetic_review_run(tmp_path, *, repository_root, context):
-    run_id = "stage4c-fixture"
-    run = tmp_path / "raw" / run_id
-    optimizer = run / "optimizer"
-    (optimizer / "metadata").mkdir(parents=True)
-    (optimizer / "summary").mkdir()
-    source_sha = "a" * 40
-    stage_manifest = build_stage4c_run_manifest(
-        context, run_id=run_id, source_commit_sha=source_sha,
-    )
-    metadata = {
-        "study_type": STUDY_TYPE,
-        "protocol_revision": PROTOCOL_REVISION,
-        "protocol_fingerprint": PROTOCOL_REVISION,
-        "computation_fingerprint": context["fingerprint"]["computation_fingerprint"],
-        "topologies": list(TOPOLOGIES), "comparison_arms": list(TOPOLOGIES),
-        "seeds": list(SEEDS), "expected_cell_count": 10,
-        "budget_per_cell": BUDGET, "population_schedule_terminal_budget": BUDGET,
-        "checkpoints": list(CHECKPOINTS), "search_grid_sha256": SEARCH_GRID_SHA256,
-        "common_validation_grid_id": COMMON_GRID_ID,
-        "common_validation_grid_sha256": COMMON_GRID_SHA256,
-        "source_impedance_ohm": 50.0, "load_impedance_ohm": 50.0,
-        "cold_start": True, "warm_start": False,
-        "parent_transfer": False, "topology_transfer": False,
-        "initial_population_rule": "18 * topology_dimension",
-        "initial_populations": {"P_D": 234, "D_P": 234},
-        "production_early_stop": False,
-        "historical_population_injection": False,
-    }
-    spec = load_review_spec("hybrid_stage4c", repository_root)
-    root_manifest = {
-        "schema_version": 4,
-        "run_id": run_id,
-        "study_type": STUDY_TYPE,
-        "source_commit_sha": source_sha,
-        "source_branch": "codex/stage4c-confirmatory-protocol",
-        "project_root": str(Path(repository_root).resolve()),
-        "run_storage_policy": "external_persistent_v1",
-        "persistent_run_root": PRODUCTION_RUN_ROOT,
-        "review_stage": "stage4c",
-        "review_output_dir": f"reports/experiment_reviews/stage4c/{run_id}",
-        "review_spec_id": "hybrid_stage4c",
-        "review_spec": spec,
-        "review_spec_sha256": _canonical_json_sha256(spec),
-        "experiment_metadata": metadata,
-    }
-    (run / "run_manifest.json").write_text(json.dumps(root_manifest), encoding="utf-8")
-    (run / "status.json").write_text(json.dumps({"optimizer_state": "COMPLETED", "exit_code": 0}), encoding="utf-8")
-    for relpath, value in {
-        "run_completion.json": {"status": "COMPLETED", "run_id": run_id, "computation_fingerprint": metadata["computation_fingerprint"]},
-        "protocol_snapshot.json": {"study_type": STUDY_TYPE, "run_id": run_id, "computation_fingerprint": metadata["computation_fingerprint"], "common_validation_grid_id": COMMON_GRID_ID},
-        "integrity_check.json": {"status": "PASS", "complete": True, "cells_expected": 10, "cells_present": 10,
-                                 "cells_completed": 10, "topologies_present": list(TOPOLOGIES), "seeds_present": list(SEEDS)},
-        "stage4c_run_manifest.json": stage_manifest,
-    }.items():
-        (optimizer / "metadata" / relpath).write_text(json.dumps(value), encoding="utf-8")
-    (optimizer / "metadata" / "config_snapshot.yaml").write_text("study:\n  type: hybrid_stage4c_confirmatory\n", encoding="utf-8")
-    for name in STAGE4C_REQUIRED_ARTIFACTS:
-        if name.startswith("summary/"):
-            (optimizer / name).write_text("key,value\nfixture,1\n", encoding="utf-8")
-    for item in expected_matrix():
-        cell_dir = optimizer / "optimization" / item["topology"] / f"seed{item['seed']}"
-        cell_dir.mkdir(parents=True)
-        for filename in ("cell_result.json", "cell_status.json"):
-            payload = {
-                "status": "COMPLETED", "run_id": run_id,
-                "source_commit_sha": source_sha,
-                "computation_fingerprint": metadata["computation_fingerprint"],
-                "topology": item["topology"], "seed": item["seed"],
-                "budget": BUDGET, "population_schedule_terminal_budget": BUDGET,
-                "common_validation_grid_id": COMMON_GRID_ID,
-                "cold_start": True, "warm_start": False,
-                "parent_transfer": False, "topology_transfer": False,
-            }
-            (cell_dir / filename).write_text(json.dumps(payload), encoding="utf-8")
-    return run, root_manifest, stage_manifest
-
-
-def test_stage4c_dedicated_review_spec_and_export(tmp_path):
-    context = load_stage4c_context(CONFIG)
-    spec = load_review_spec("hybrid_stage4c", Path.cwd())
-    destinations = {item["destination"] for item in spec["required_artifacts"]}
-    assert set(STAGE4C_REQUIRED_ARTIFACTS) <= destinations | {"run_manifest.json", "status.json"}
-    assert spec["stage"] == "stage4c"
-    assert spec["target_size_bytes"] == 2 * 1024 * 1024
-    assert spec["hard_size_bytes"] == 10 * 1024 * 1024
-    run, _root_manifest, _stage_manifest = _synthetic_review_run(
-        tmp_path, repository_root=Path.cwd(), context=context,
-    )
-    validated = validate_stage4c_review_contract(run, Path.cwd())
-    assert validated["status"] == "PASS"
-    assert validated["canonical_path"] == "reports/experiment_reviews/stage4c/stage4c-fixture"
-    result = export_stage4c_review(
-        run, repository_root=Path.cwd(), destination=tmp_path / "review-package",
-    )
-    assert result["status"] == "EXPORTED"
-    assert result["bytes"] < 2 * 1024 * 1024
-    assert (tmp_path / "review-package" / "cells" / "P_D" / f"{SEEDS[0]}_result.json").is_file()
-
-
-@pytest.mark.parametrize(
-    ("mutation", "match"),
-    [
-        ("stage", "review stage mismatch"),
-        ("study_type", "study type mismatch"),
-        ("seeds", "seeds mismatch"),
-        ("topologies", "topologies mismatch"),
-        ("budget", "budget_per_cell mismatch"),
-        ("grid", "common_validation_grid_id mismatch"),
-        ("mode", "production mode"),
-    ],
-)
-def test_stage4c_exporter_fails_closed_on_contract_mismatch(tmp_path, mutation, match):
-    context = load_stage4c_context(CONFIG)
-    run, root_manifest, stage_manifest = _synthetic_review_run(
-        tmp_path, repository_root=Path.cwd(), context=context,
-    )
-    if mutation == "stage":
-        root_manifest["review_stage"] = "stage4b"
-        root_manifest["review_output_dir"] = "reports/experiment_reviews/stage4b/stage4c-fixture"
-    elif mutation == "study_type":
-        root_manifest["study_type"] = "hybrid_stage4b_topology_comparison"
-    elif mutation == "seeds":
-        root_manifest["experiment_metadata"]["seeds"] = list(SEEDS[:-1])
-    elif mutation == "topologies":
-        stage_manifest["topologies"] = ["P_D"]
-        (run / "optimizer" / "metadata" / "stage4c_run_manifest.json").write_text(
-            json.dumps(stage_manifest), encoding="utf-8",
-        )
-    elif mutation == "budget":
-        stage_manifest["budget_per_cell"] = 24000
-        (run / "optimizer" / "metadata" / "stage4c_run_manifest.json").write_text(
-            json.dumps(stage_manifest), encoding="utf-8",
-        )
-    elif mutation == "grid":
-        root_manifest["experiment_metadata"]["common_validation_grid_id"] = "wrong-grid"
-    elif mutation == "mode":
-        stage_manifest["mode"] = "shakedown"
-        (run / "optimizer" / "metadata" / "stage4c_run_manifest.json").write_text(
-            json.dumps(stage_manifest), encoding="utf-8",
-        )
-    (run / "run_manifest.json").write_text(json.dumps(root_manifest), encoding="utf-8")
-    with pytest.raises(ReviewExportError, match=match):
-        export_review(
-            run, repository_root=Path.cwd(), destination=tmp_path / "must-not-export",
-        )
 
 
 def test_stage4c_report_summaries_cover_convergence_boundary_runtime_and_stopband(tmp_path):

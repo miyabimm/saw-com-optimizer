@@ -142,16 +142,17 @@ closeout; later archive/deletion is a separate explicit lifecycle operation.
 
 ## GitHub review evidence
 
-Historical GitHub exporters and `reports/experiment_reviews/...` packages are
-not the R5 schema. For any future authorized run, follow the future-only R5
-store/review contract in [`../experiments.md`](../experiments.md). Do not use
-`python -m sawopt export-review` as a production runner or publish a new
-production package through an old lifecycle path. Keep full checkpoints and
-raw arrays out of review packages; package integrity is not scientific
-acceptance.
+Issue #124 removed the old schema-v1–v4 GitHub exporter and
+`python -m sawopt export-review` command. Existing `reports/experiment_reviews/...`
+packages remain immutable historical evidence and are not the R5 schema. For
+any future authorized run, follow the future-only R5 store/review contract in
+[`../experiments.md`](../experiments.md); do not regenerate or migrate old
+packages. Keep full checkpoints and raw arrays out of review packages; package
+integrity is not scientific acceptance.
 
-The historical/ad-hoc `ReviewBundleSpec` / `build_review_bundle` utility remains
-available for saved-run packaging. Its checkpoint filter excludes files in
+The separate historical/ad-hoc `ReviewBundleSpec` / `build_review_bundle`
+utility remains for existing code callers and explicitly authorized saved-run
+packaging. Its checkpoint filter excludes files in
 dedicated `checkpoints/` directories and checkpoint-named JSON/binary payloads,
 while retaining lifecycle documentation, source code, and CSV accounting. See
 [`review_bundles.md`](review_bundles.md).

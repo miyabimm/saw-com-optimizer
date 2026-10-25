@@ -16,9 +16,9 @@ future production runner.
 
 A scientific review package must never be fabricated for an orphaned run that
 lacks a complete terminal cell matrix. R5's future-only exporter is a distinct
-schema and is not wired to a production runner; do not route a legacy closeout
-through an old `export-review` command or represent it as a completed
-experiment.
+schema and is not wired to a production runner. Issue #124 removed the old
+schema-v1–v4 `export-review` command/exporter; do not regenerate historical
+packages or represent an administrative closeout as a completed experiment.
 
 Administrative closeout only records that the old run is abandoned as failed, preserves the raw run/checkpoints for investigation, and releases its active-run registry entry after a reviewed GitHub closeout record has been merged.
 

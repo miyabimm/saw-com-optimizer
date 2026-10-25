@@ -44,13 +44,13 @@ questions. Do not rewrite historical evidence as part of routine cleanup.
 
 The supported R6 user-facing CLI is `sawopt` / `python -m sawopt.cli` for strict
 synthetic configuration validation and explicitly injected synthetic fixtures.
-The separate legacy `python -m sawopt` module now exposes only
-`export-review --run PATH [--destination PATH]` for saved legacy review
-packages; it is not a scientific product runner or an alias for R5. Its former
-simulation, optimization, study, report, and shakedown commands, together with
-the detached orchestration launch/resume/recover/worker path, have been removed.
-The old Codex queue/callback runtime and project-local C2C/Codex hook utilities
-are retired; there is no automatic agent handoff or session-continuation
+Issue #124 retired the separate `python -m sawopt` dispatcher and old
+schema-v1–v4 `export-review` / `reporting.github_review` capability. This is an
+intentional capability break, not an alias or migration for R5. The separately
+installed `sawopt` console script and R5 `sawopt.review/1` package remain. The
+old scientific CLI and detached orchestration launch/resume/recover/worker
+path, Codex queue/callback runtime, and project-local C2C/Codex hook utilities
+are also retired; there is no automatic agent handoff or session-continuation
 fallback.
 
 The synthetic task Worker/ledger is a separate software-only path. It does not

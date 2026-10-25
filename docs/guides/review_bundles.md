@@ -1,26 +1,26 @@
 # Review bundle usage — historical / ad-hoc packaging
 
-> This describes a retained saved-run packaging utility, not a new-run
-> workflow. No production run or historical-data access is authorized here.
-> The retained `python -m sawopt export-review` flow and
-> `reports/experiment_reviews/...` convention are legacy review evidence, not
-> the R5 schema or a current production publication path.
+> This describes a retained ZIP utility used by selected older study/report
+> code, not a new-run workflow. No production run or historical-data access is
+> authorized here. Issue #124 removed the schema-v1–v4
+> `python -m sawopt export-review` / `reporting.github_review` exporter. Existing
+> `reports/experiment_reviews/...` packages remain immutable historical
+> evidence; they are not R5 and must not be regenerated or migrated.
 
-`artifacts/review_bundles/` and `sawopt.reporting.review_bundle` are retained for
-manual packaging of already-authorized historical or ad-hoc saved runs. They
-are not the canonical review path for future R5 runs. Follow
+`artifacts/review_bundles/` and `sawopt.reporting.review_bundle` remain because
+current study/report code and tests use this separate ZIP utility. It is not an
+alias or fallback for R5. Use it only with test fixtures or a specifically
+owner-authorized saved-run operation. Follow
 [`../experiments.md`](../experiments.md) for authorization, data boundaries,
 and the future-only R5 package contract.
 
 ## When this legacy/manual utility is appropriate
 
-Use the generic ZIP builder when you need to package an already-existing saved
-run outside the active production publication flow, for example:
-
-- historical evidence recovery;
-- a one-off handoff of a saved run;
-- forensic preservation;
-- compatibility with an older review workflow.
+The ZIP builder is an implementation utility for the existing older
+study/report callers and isolated fixtures. Any use with saved run data still
+requires the separate data-access and lifecycle authorization in
+[`../experiments.md`](../experiments.md). It is not a recovery or migration
+route for the retired exporter.
 
 This ZIP helper is not a replacement for the future-only R5 exporter and does
 not establish scientific review readiness or authorize reading a raw run.

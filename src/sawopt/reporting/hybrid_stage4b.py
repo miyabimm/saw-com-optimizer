@@ -1,7 +1,6 @@
 """Integrity checks and matched-seed summaries for Stage 4B."""
 from __future__ import annotations
 
-import csv
 import json
 import math
 from collections import Counter
@@ -21,41 +20,6 @@ from ..studies.hybrid_stage4b import (
     _cell_paths,
     _expected_matrix,
 )
-
-
-STAGE4B_REQUIRED_ARTIFACTS = (
-    "metadata/stage4b_run_manifest.json",
-    "metadata/orchestration_run_manifest.json",
-    "metadata/protocol_snapshot.json",
-    "metadata/config_snapshot.yaml",
-    "metadata/integrity_check.json",
-    "topology_summary.csv",
-    "paired_comparisons.csv",
-    "convergence.csv",
-    "bound_pressure_summary.csv",
-    "runtime_accounting_summary.csv",
-    "symmetry_sanity_report.json",
-    "scientific_limitations.md",
-    "final_execution_report.md",
-    "REVIEW_ME.md",
-)
-
-
-def _write_json(path: Path, value: Any) -> None:
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8")
-
-
-def _write_csv(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fields = sorted(set().union(*(row.keys() for row in rows))) if rows else []
-    with path.open("w", newline="", encoding="utf-8-sig") as stream:
-        writer = csv.DictWriter(stream, fieldnames=fields)
-        if fields:
-            writer.writeheader()
-            writer.writerows(rows)
 
 
 def _metric(result: Mapping[str, Any] | None, name: str) -> float | None:
@@ -520,131 +484,8 @@ def _classify(summary: Sequence[Mapping[str, Any]], paired: Sequence[Mapping[str
     }
 
 
-def _render_execution_report(integrity: Mapping[str, Any], summary: Sequence[Mapping[str, Any]],
-                             decision: Mapping[str, Any], symmetry: Mapping[str, Any],
-                             fingerprint: str, source_sha: str, run_id: str) -> str:
-    lines = [
-        "# Stage 4B Hybrid Topology Production Comparison",
-        "",
-        "**State: `STAGE4B_EXECUTED_REVIEW_PENDING`** — Codex analysis only; external GitHub review is pending.",
-        "",
-        f"- Run ID: `{run_id}`",
-        f"- Production source SHA: `{source_sha}`",
-        f"- Computation fingerprint (schema v2): `{fingerprint}`",
-        f"- Integrity: `{integrity['cells_completed']}/20` completed; `{integrity['status']}`",
-        "- Protocol: 4 topologies × 5 matched seeds × 24,000 unique decoded evaluations = 480,000 total.",
-        f"- Decision: `{decision['classification']}`",
-        f"- P_D / D_P sanity: `{symmetry['status']}`",
-        "",
-        "## Topology summary",
-        "",
-        "| Topology | Feasible seeds | Median max violation | IQR | Median sum violation | Median worst IL dB | Median ripple dB |",
-        "|---|---:|---:|---:|---:|---:|---:|",
-    ]
-    for row in summary:
-        lines.append(
-            f"| {row['topology']} | {row['feasible_seeds']}/{row['completed_seeds']} | "
-            f"{row['median_max_violation']} | {row['iqr_max_violation']} | "
-            f"{row['median_sum_violation']} | {row['median_worst_il_db']} | {row['median_ripple_db']} |"
-        )
-    lines.extend([
-        "",
-        "## Decision rationale",
-        "",
-        str(decision["rationale"]),
-        "",
-        "## Scientific limitations",
-        "",
-        "This is a relative topology comparison under the current provisional MLIT COM profile, T1_SYMMETRIC_5IDT model, existing resonator model, and fixed 50/50 ohm ports. It does not confirm real Band 28 device feasibility, calibrated physical prediction, a real-device optimum, a final topology optimum, or an impedance recommendation. Stage 4A smoke results are not used as scientific ranking evidence.",
-        "",
-        "The review state remains `STAGE4B_EXECUTED_REVIEW_PENDING`; this report does not say `STAGE4B_ACCEPTED`.",
-    ])
-    if not integrity.get("complete"):
-        lines.extend(["", "## Integrity issues", "", *[f"- {issue}" for issue in integrity.get("issues", [])]])
-    return "\n".join(lines) + "\n"
-
-
-def write_production_reports(run_directory: str | Path, context: Mapping[str, Any]) -> dict[str, Any]:
-    """Create integrity/evidence tables and a GitHub-ready review bundle."""
-    from .review_bundle import ReviewBundleSpec, build_review_bundle
-
-    run = Path(run_directory).resolve()
-    integrity = validate_production_matrix(run, context)
-    cells = integrity["cells"]
-    summary = summarize_topologies(cells)
-    paired = paired_comparisons(cells)
-    convergence = convergence_rows(cells)
-    bounds = bound_pressure_rows(cells)
-    runtime = runtime_rows(cells)
-    symmetry = symmetry_sanity(cells)
-    decision = _classify(summary, paired, bool(integrity["complete"]))
-    _write_json(run / "metadata" / "integrity_check.json", integrity)
-    _write_csv(run / "topology_summary.csv", summary)
-    _write_csv(run / "paired_comparisons.csv", paired)
-    _write_csv(run / "convergence.csv", convergence)
-    _write_csv(run / "bound_pressure_summary.csv", bounds)
-    _write_csv(run / "runtime_accounting_summary.csv", runtime)
-    _write_json(run / "symmetry_sanity_report.json", symmetry)
-    run_id = "unknown"
-    source_sha = "unknown"
-    parent_manifest = run / "metadata" / "orchestration_run_manifest.json"
-    if parent_manifest.is_file():
-        parent = json.loads(parent_manifest.read_text(encoding="utf-8"))
-        run_id = str(parent.get("run_id", "unknown"))
-        source_sha = str(parent.get("experiment_metadata", {}).get("source_commit_sha", "unknown"))
-    limitations = (
-        "# Scientific limitations\n\n"
-        "- Results are relative to the current provisional MLIT COM profile and existing hybrid/resonator model.\n"
-        "- They do not establish real Band 28 feasibility, calibrated physical prediction, a real-device optimum, a final topology optimum, or a final impedance recommendation.\n"
-        "- Stage 4A smoke results are implementation evidence only and are excluded from scientific ranking.\n"
-        "- The P_D/D_P warning is a descriptive paired-seed diagnostic; it is not proof of physical symmetry failure.\n"
-        "- External GitHub review is pending; no `STAGE4B_ACCEPTED` state is assigned.\n"
-    )
-    (run / "scientific_limitations.md").write_text(limitations, encoding="utf-8")
-    report_text = _render_execution_report(
-        integrity, summary, decision, symmetry,
-        str(context["fingerprint"]["computation_fingerprint"]), source_sha, run_id,
-    )
-    (run / "final_execution_report.md").write_text(report_text, encoding="utf-8")
-    review_me = "\n".join([
-        "# Stage 4B external review request", "",
-        "Please independently review the exact protocol, integrity check, matched-seed analysis, symmetry diagnostic, and scientific claim limits in this bundle.",
-        "The report is a Codex analysis artifact and remains `STAGE4B_EXECUTED_REVIEW_PENDING`; do not treat it as accepted project baseline.",
-        "",
-    ])
-    (run / "REVIEW_ME.md").write_text(review_me, encoding="utf-8")
-    required = list(STAGE4B_REQUIRED_ARTIFACTS)
-    for topology in TOPOLOGIES:
-        for seed in SEEDS:
-            cell, _, _ = _cell_paths(run, topology, seed)
-            required.append((cell / "cell_manifest.json").relative_to(run).as_posix())
-            required.append((cell / "cell_result.json").relative_to(run).as_posix())
-            required.append((cell / "initializer.json").relative_to(run).as_posix())
-            required.append((cell / "initialization_checkpoint.json").relative_to(run).as_posix())
-            required.extend((cell / f"B{point}.json").relative_to(run).as_posix() for point in CHECKPOINTS)
-    source_paths = tuple(dict.fromkeys((*context["computation_paths"], *context["reporting_paths"])))
-    spec = ReviewBundleSpec(
-        study_type="hybrid_stage4b_topology_comparison",
-        required_artifacts=tuple(required),
-        source_paths=source_paths,
-        git_diff_paths=source_paths,
-    )
-    output = Path(context["root"]) / "artifacts" / "review_bundles" / f"{run.name}_review.zip"
-    bundle_path = build_review_bundle(run, output, spec, repo_root=context["root"])
-    return {
-        "status": "STAGE4B_EXECUTED_REVIEW_PENDING" if integrity["complete"] else "BLOCKED_INCOMPLETE_MATRIX",
-        "integrity": integrity,
-        "topology_summary": summary,
-        "paired_comparisons": paired,
-        "convergence": convergence,
-        "symmetry": symmetry,
-        "decision": decision,
-        "review_bundle": str(bundle_path),
-    }
-
-
 __all__ = [
-    "STAGE4B_REQUIRED_ARTIFACTS", "bound_pressure_rows", "convergence_rows",
-    "paired_comparisons", "runtime_rows", "summarize_topologies",
-    "symmetry_sanity", "validate_production_matrix", "write_production_reports",
+    "bound_pressure_rows", "convergence_rows", "paired_comparisons",
+    "runtime_rows", "summarize_topologies", "symmetry_sanity",
+    "validate_production_matrix",
 ]

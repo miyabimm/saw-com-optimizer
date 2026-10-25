@@ -2,9 +2,10 @@
 
 > **No current production runner is authorized by this page.** R5 raw/review
 > storage and R6 CLI/Worker behavior are synthetic-only; former Codex
-> queue/callback and Stage 4B/4C production routes are retired. Do not invoke
-> an old `run-study`, `export-review`, checkpoint, or launcher command based
-> on this forward-looking note. Before implementation or execution, follow the
+> queue/callback and Stage 4B/4C production routes are retired. Issue #124 also
+> removed the old schema-v1–v4 `export-review` command/exporter. Do not invoke
+> an old `run-study`, checkpoint, or launcher command based on this
+> forward-looking note. Before implementation or execution, follow the
 > current [roadmap](../roadmap.md) and [experiment/data policy](../experiments.md)
 > and obtain every required owner decision.
 
@@ -34,8 +35,8 @@ checkpoints. Historical marker translation belongs in
 the checkpoint core.
 
 Any future publication adapter needs a separately reviewed owner and contract.
-The old generic `export-review` flow is not a current production interface;
-R5's compact exporter is distinct and future-only. Keep integrity, redaction,
+The old generic `export-review` flow has been removed; R5's compact exporter is
+distinct and future-only. Keep integrity, redaction,
 size limits, and publication semantics in their approved owners.
 
 `ReviewBundleSpec` / `build_review_bundle` is a historical/ad-hoc saved-run ZIP

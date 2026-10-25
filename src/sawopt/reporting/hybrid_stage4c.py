@@ -1,4 +1,4 @@
-"""Stage 4C compact reports and fail-closed GitHub review export."""
+"""Stage 4C scientific summaries, diagnostics, and compact reports."""
 from __future__ import annotations
 
 import csv
@@ -16,19 +16,7 @@ from ..optimization.selection import DEFAULT_COMPARATOR
 from .candidate_integrity import validated_hybrid_rank_key
 from ..studies.hybrid_stage4c import (
     BUDGET, CHECKPOINTS, COMMON_GRID_ID, COMMON_GRID_SHA256, PROTOCOL_REVISION,
-    SEARCH_GRID_SHA256, SEEDS, STUDY_TYPE, TOPOLOGIES, PRODUCTION_RUN_ROOT,
-    expected_matrix,
-)
-
-
-STAGE4C_REQUIRED_ARTIFACTS = (
-    "run_manifest.json", "status.json", "metadata/run_completion.json",
-    "metadata/config_snapshot.yaml", "metadata/protocol_snapshot.json",
-    "metadata/integrity_check.json", "metadata/stage4c_run_manifest.json",
-    "summary/primary_summary.csv", "summary/paired_comparisons.csv",
-    "summary/convergence.csv", "summary/bound_pressure_summary.csv",
-    "summary/runtime_accounting_summary.csv", "summary/stopband_diagnostics.csv",
-    "summary/scientific_limitations.md", "summary/final_execution_report.md",
+    SEARCH_GRID_SHA256, SEEDS, STUDY_TYPE, TOPOLOGIES, expected_matrix,
 )
 SIGNIFICANT_ABSOLUTE_IMPROVEMENT = 0.02
 SIGNIFICANT_RELATIVE_IMPROVEMENT = 0.01
@@ -641,105 +629,8 @@ def write_stage4c_reports(
     return report
 
 
-def validate_stage4c_review_contract(run_directory: str | Path, repository_root: str | Path) -> dict[str, Any]:
-    """Fail closed unless this is a complete Stage 4C production review input."""
-    from .github_review import ReviewExportError, _canonical_json_sha256, load_review_spec
-
-    run = Path(run_directory).resolve()
-    raw = _read_json(run / "run_manifest.json")
-    status = _read_json(run / "status.json")
-    metadata = raw.get("experiment_metadata") or {}
-    manifest = _read_json(run / "optimizer" / "metadata" / "stage4c_run_manifest.json")
-    spec = raw.get("review_spec")
-    if not isinstance(spec, Mapping) or _canonical_json_sha256(spec) != raw.get("review_spec_sha256"):
-        raise ReviewExportError("Stage 4C frozen review spec missing or hash mismatch")
-    declared_spec = load_review_spec("hybrid_stage4c", repository_root)
-    if dict(spec) != declared_spec:
-        raise ReviewExportError("Stage 4C run uses a different frozen review spec")
-    if raw.get("review_stage") != "stage4c" or spec.get("stage") != "stage4c":
-        raise ReviewExportError("Stage 4C review stage mismatch")
-    expected_path = f"reports/experiment_reviews/stage4c/{raw.get('run_id', '')}"
-    if raw.get("review_output_dir", "").replace("\\", "/").strip("/") != expected_path:
-        raise ReviewExportError("Stage 4C review output path is not canonical")
-    if raw.get("study_type") != STUDY_TYPE or metadata.get("study_type") != STUDY_TYPE:
-        raise ReviewExportError("Stage 4C study type mismatch")
-    if manifest.get("study_type") != STUDY_TYPE or manifest.get("protocol_revision") != PROTOCOL_REVISION:
-        raise ReviewExportError("Stage 4C protocol manifest identity mismatch")
-    if manifest.get("mode") != "production":
-        raise ReviewExportError("Stage 4C review export requires production mode")
-    checks = (
-        ("topologies", list(TOPOLOGIES)), ("seeds", list(SEEDS)),
-        ("budget_per_cell", BUDGET), ("population_schedule_terminal_budget", BUDGET),
-        ("checkpoints", list(CHECKPOINTS)), ("search_grid_sha256", SEARCH_GRID_SHA256),
-        ("common_validation_grid_id", COMMON_GRID_ID),
-        ("common_validation_grid_sha256", COMMON_GRID_SHA256),
-    )
-    for key, expected in checks:
-        if manifest.get(key) != expected or metadata.get(key) != expected:
-            raise ReviewExportError(f"Stage 4C {key} mismatch")
-    if manifest.get("run_id") != raw.get("run_id") or manifest.get("source_commit_sha") != raw.get("source_commit_sha"):
-        raise ReviewExportError("Stage 4C source/run identity mismatch")
-    if manifest.get("run_storage_policy") != "external_persistent_v1" or raw.get("run_storage_policy") != "external_persistent_v1":
-        raise ReviewExportError("Stage 4C production storage policy mismatch")
-    if manifest.get("required_storage_root") != PRODUCTION_RUN_ROOT:
-        raise ReviewExportError("Stage 4C frozen production root mismatch")
-    try:
-        Path(raw.get("persistent_run_root", "")).resolve(strict=False).relative_to(
-            Path(PRODUCTION_RUN_ROOT).resolve(strict=False)
-        )
-    except (OSError, RuntimeError, ValueError) as exc:
-        raise ReviewExportError("Stage 4C orchestration run is outside the frozen external production root") from exc
-    frozen_flags = {
-        "initial_population_rule": "18 * topology_dimension",
-        "initial_populations": {"P_D": 234, "D_P": 234},
-        "production_early_stop": False,
-        "cold_start": True,
-        "warm_start": False,
-        "parent_transfer": False,
-        "topology_transfer": False,
-        "historical_population_injection": False,
-    }
-    for key, expected in frozen_flags.items():
-        if manifest.get(key) != expected or metadata.get(key) != expected:
-            raise ReviewExportError(f"Stage 4C {key} mismatch")
-    if "codex_session_id" in manifest or "callback_enabled" in manifest:
-        raise ReviewExportError("Stage 4C manifest contains deprecated session/callback metadata")
-    if metadata.get("source_impedance_ohm") != 50.0 or metadata.get("load_impedance_ohm") != 50.0:
-        raise ReviewExportError("Stage 4C port termination mismatch")
-    if status.get("optimizer_state", status.get("state")) != "COMPLETED":
-        raise ReviewExportError("Stage 4C optimizer is not completed")
-    matrix = expected_matrix()
-    for cell in matrix:
-        topology, seed = cell["topology"], cell["seed"]
-        cell_dir = run / "optimizer" / "optimization" / topology / f"seed{seed}"
-        for filename in ("cell_result.json", "cell_status.json"):
-            item = _read_json(cell_dir / filename)
-            if (item.get("topology") != topology or int(item.get("seed", -1)) != seed
-                    or int(item.get("budget", -1)) != BUDGET
-                    or int(item.get("population_schedule_terminal_budget", -1)) != BUDGET
-                    or item.get("common_validation_grid_id") != COMMON_GRID_ID
-                    or item.get("cold_start") is not True
-                    or item.get("warm_start") is not False
-                    or item.get("parent_transfer") is not False
-                    or item.get("topology_transfer") is not False):
-                raise ReviewExportError(f"Stage 4C cell protocol mismatch: {topology}/seed{seed}")
-    return {"status": "PASS", "expected_cells": len(matrix), "grid_id": COMMON_GRID_ID,
-            "review_stage": "stage4c", "canonical_path": expected_path}
-
-
-def export_stage4c_review(
-    run_directory: str | Path, *, repository_root: str | Path,
-    destination: str | Path | None = None,
-) -> dict[str, Any]:
-    """Validate the exact Stage 4C matrix before calling the generic exporter."""
-    validate_stage4c_review_contract(run_directory, repository_root)
-    from .github_review import export_review
-    return export_review(run_directory, destination=destination, repository_root=repository_root)
-
-
 __all__ = [
-    "MODEL_LEVEL_MATERIALITY_THRESHOLD", "STAGE4C_REQUIRED_ARTIFACTS", "classify_stage4c",
-    "convergence_rows", "export_stage4c_review", "paired_comparisons",
-    "primary_summary", "runtime_rows", "stopband_rows",
-    "validate_stage4c_review_contract", "write_stage4c_reports",
+    "MODEL_LEVEL_MATERIALITY_THRESHOLD", "classify_stage4c", "convergence_rows",
+    "paired_comparisons", "primary_summary", "runtime_rows", "stopband_rows",
+    "write_stage4c_reports",
 ]
