@@ -4,9 +4,7 @@
 stated, bounded purposes. They do **not** establish an executable real-SAW path,
 full numerical parity, Q1 gate passage, or authorization to run an experiment.
 This read-only audit used checked-in source, documentation, fixtures, Git
-metadata, and deterministic software tests only. No COM/FE calculation,
-optimizer study, historical replay, production run, or external raw-data
-inspection was performed.
+metadata, and deterministic software tests only. Pi's manually selected checks launched no scientific optimizer study, historical experiment replay, production run, or external raw-data inspection. Automatic PR CI did perform fixed-input COM regression calculations and full pytest, which the owner subsequently confirmed are permitted software checks (see §5).
 
 **Audited source baseline:** `419d246` (`origin/main`, Issue #148 merge), the
 base of the Issue #155 work branch. No repository source or scientific data was
@@ -110,6 +108,25 @@ Consequently:
 - `uv run --locked sawopt --help` — confirmed current command boundary.
 - SHA checks and `git ls-files` for the artifacts in §3 — matched as listed.
 
-No full test suite was run: this audit changed no code, and the selected
-Q1-A/canonicalization checks directly cover its compatibility claims. No
-scientific run or physics calculation was run.
+**Local versus CI verification:** The items above were Pi's manually selected
+local checks; Pi did not run the full pytest suite locally. Draft PR #156
+automatically triggered GitHub Actions run #40210121134 on head
+c999ace6f2e677b505dd98ef02431319cbd1051c.
+The fixed-input COM numerical reproducibility diagnostic
+(tools/diagnostics/evaluation_repro.py) and full pytest steps both completed
+successfully, although the workflow's final conclusion was cancelled.
+https://github.com/miyabimm/saw-com-optimizer/actions/runs/40210121134
+
+The diagnostic calls FixedProvider/simulate_filter and fixed-design topology
+evaluation; it is a bounded COM software-regression test, **not an optimizer
+research experiment**. Full pytest can also exercise COM and bounded optimizer
+unit/integration fixtures. Neither step is a Q0 experiment, integrated
+Stage 5A parity qualification, or approval of a new study.
+
+**Owner clarification (2026-10-26 JST):** Issue #155's previous 'no COM/FE'
+wording was intended to prohibit new research/optimization experiments,
+not the minimum fixed-input COM or optimizer unit-test calculations required
+for software correctness. Existing CI tests are permitted; the initial
+classification of these tests as an unauthorized scientific calculation
+was withdrawn. No external historical raw-data examination was performed.
+Future scientific runs and a new integrated parity study remain gated.

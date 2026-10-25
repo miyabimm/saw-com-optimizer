@@ -143,10 +143,7 @@ criteria before any real execution capability is merged:
   declaration; all intermediates stay external; review export is the existing
   postprocessor. No legacy manifest reader, automatic migration, hidden resume
   route, old alias, one-off script, or stage-specific dispatcher is introduced.
-- Tests separate deterministic software contracts from scientific evaluation.
-  Any real COM/FE, optimizer qualification, changed comparison condition, or
-  production run remains separately gated and is not inferred from a schema,
-  unit test, issue, or successful export.
+- Tests distinguish bounded software verification (including existing fixed-input COM regressions and small optimizer test fixtures) from new scientific studies. Routine bounded tests are permitted; optimizer qualification experiments, changed comparison conditions, new research-scale COM/FE calculations and production runs remain separately gated. Test success is not scientific approval.
 
 ## 5. Test and scientific-parity plan
 
@@ -181,18 +178,14 @@ Use retained analytic regressions and the explicitly bounded Stage 5A-1 parity
 records as references, not as proof for untested inputs. Establish each tolerance
 before comparing; require exact bytes where canonical identity/order is the
 contract. This is numerical software qualification, not physical calibration,
-optimizer convergence evidence or a real SAW study. Because it may call COM/FE
-or evaluate optimizer candidates, obtain the required separate explicit owner
-authorization before running it. Do not run any of these checks under Issue
-#155.
+optimizer convergence evidence or a real SAW study. This proposed **new integrated Stage 5A parity qualification** extends beyond existing fixed-input COM regressions and requires separate explicit owner authorization. Do not launch that study under Issue #155; ordinary bounded software tests remain permitted.
 
 ## 6. Proposed successor issues (not created or authorized by this document)
 
 1. **Config schema and validate-only resolver.** Agree and implement the
    versioned generic schema, typed resolved snapshot and side-effect-free
    `validate` behavior. Software fixtures only; no scientific evaluator,
-   optimizer, R5 run creation, COM/FE, or experiment config. Owner approval is
-   required before issue creation/implementation.
+   new scientific optimizer/COM execution, R5 run creation, or experiment config; routine bounded regression tests remain allowed. Owner approval is required before issue creation/implementation.
 2. **Shared configured evaluation/optimizer-to-R5 integration.** After the
    schema is accepted, design one reusable injected evaluator/optimizer path,
    constrained-result handling, search/validation accounting, checkpoint and
@@ -201,8 +194,7 @@ authorization before running it. Do not run any of these checks under Issue
    approval; its tests do not authorize a run.
 3. **Numerical parity qualification.** Open separately after implementation
    review, with a frozen parity matrix and predeclared tolerances. Get explicit
-   authorization before any COM/FE or optimizer-candidate calculation; do not
-   combine it with an optimizer study or production launch.
+   authorization before the **new integrated scientific parity study**; this does not block ordinary fixed-input COM regression or bounded optimizer unit fixtures. Do not combine it with an optimizer study or production launch.
 
 Q1-B/C/D/E remain `NOT AUTHORIZED / NOT STARTED`, all Q1-01…Q1-23 gates remain
 unpassed, and the Stage 5A-2 comparison is not authorized. No successor issue,
