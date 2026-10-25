@@ -1,24 +1,20 @@
 """Read-only worktree inventory and fail-closed removal support."""
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path, PureWindowsPath
 import shutil
+import socket
 import stat
 import subprocess
-from typing import Any
+import time
+from typing import Any, Iterator
 
-from .active_runs import (
-    ActiveRunRegistryError,
-    active_runs_for_worktree,
-    initialize_active_run_registry,
-    register_active_run,
-    registry_directory,
-    release_active_run,
-    worktree_safety_lock,
-)
+from .pid_utils import pid_exists
 
 
 @dataclass(frozen=True)
@@ -47,7 +43,6 @@ class WorktreeAudit:
     filesystem_inventory_complete: bool = False
     inaccessible_paths: tuple[str, ...] = ()
     errors: tuple[str, ...] = ()
-    active_runs: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -64,6 +59,115 @@ class WorktreeRemoval:
 PROTECTED_COMPONENTS = {
     "runs", "checkpoint", "checkpoints", "logs", ".pytest-tmp", ".pytest_cache",
 }
+LOCK_STALE_AFTER_S = 300.0
+LOCK_NAME = ".sawopt-worktree-safety.lock"
+
+
+def git_common_dir(repository_root: str | Path) -> Path:
+    root = Path(repository_root).resolve(strict=True)
+    result = subprocess.run(
+        ["git", "rev-parse", "--git-common-dir"], cwd=root,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+    )
+    if result.returncode:
+        detail = result.stderr.decode("utf-8", errors="replace").strip()
+        raise RuntimeError(f"cannot resolve Git common directory: {detail}")
+    value = result.stdout.decode("utf-8", errors="strict").strip()
+    common = Path(value)
+    if not common.is_absolute():
+        common = root / common
+    return common.resolve(strict=True)
+
+
+def _read_lock_metadata(path: Path) -> dict[str, Any] | None:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _lock_age_s(path: Path, metadata: dict[str, Any] | None) -> float:
+    created_at = metadata.get("created_at") if metadata else None
+    if created_at:
+        try:
+            created = datetime.fromisoformat(str(created_at))
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            return max(0.0, (datetime.now(timezone.utc) - created).total_seconds())
+        except ValueError:
+            pass
+    try:
+        return max(0.0, time.time() - path.stat().st_mtime)
+    except OSError:
+        return 0.0
+
+
+def _reclaim_stale_lock(path: Path, *, stale_after_s: float) -> bool:
+    metadata = _read_lock_metadata(path)
+    try:
+        owner_pid = int(metadata.get("pid")) if metadata is not None else None
+    except (TypeError, ValueError):
+        owner_pid = None
+    if _lock_age_s(path, metadata) < stale_after_s or pid_exists(owner_pid):
+        return False
+    quarantine = path.with_name(
+        f".{path.name}.stale.{os.getpid()}.{time.monotonic_ns()}"
+    )
+    try:
+        os.replace(path, quarantine)
+    except FileNotFoundError:
+        return True
+    except OSError:
+        return False
+    quarantine.unlink(missing_ok=True)
+    return True
+
+
+@contextmanager
+def _exclusive_lock(
+    path: Path, *, timeout_s: float = 30.0,
+    stale_after_s: float = LOCK_STALE_AFTER_S,
+) -> Iterator[None]:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    deadline = time.monotonic() + timeout_s
+    descriptor = None
+    while time.monotonic() < deadline:
+        try:
+            descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            metadata = {
+                "pid": os.getpid(),
+                "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "hostname": socket.gethostname(),
+            }
+            os.write(descriptor, json.dumps(metadata, ensure_ascii=True).encode("utf-8"))
+            os.fsync(descriptor)
+            break
+        except FileExistsError:
+            if not _reclaim_stale_lock(path, stale_after_s=stale_after_s):
+                time.sleep(0.01)
+        except BaseException:
+            if descriptor is not None:
+                os.close(descriptor)
+                path.unlink(missing_ok=True)
+                descriptor = None
+            raise
+    if descriptor is None:
+        raise TimeoutError(f"timed out acquiring lock: {path}")
+    try:
+        yield
+    finally:
+        os.close(descriptor)
+        path.unlink(missing_ok=True)
+
+
+@contextmanager
+def worktree_safety_lock(repository_root: str | Path) -> Iterator[Path]:
+    """Serialize concurrent safety audits/removals for one Git repository."""
+    common = git_common_dir(repository_root)
+    with _exclusive_lock(common / LOCK_NAME):
+        yield common
 
 
 def _path_equal(left: str | Path, right: str | Path, *, windows: bool | None = None) -> bool:
@@ -237,7 +341,7 @@ def audit_worktree(
                 return audit_worktree(worktree, repository_root=repository_root, _lock_held=True)
         except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
             return WorktreeAudit(
-                str(worktree), "FAIL_ACTIVE_RUN_REGISTRY_INVALID", False, False, False, None,
+                str(worktree), "FAIL_WORKTREE_SAFETY_LOCK", False, False, False, None,
                 errors=(str(exc),),
             )
     requested = Path(worktree)
@@ -268,21 +372,6 @@ def audit_worktree(
     if primary:
         return WorktreeAudit(str(target), "FAIL_PRIMARY_WORKTREE", False, True, True, identity,
                              errors=("primary checkout cannot be removed",))
-    try:
-        active_records = active_runs_for_worktree(root, target, lock_held=True)
-    except ActiveRunRegistryError as exc:
-        classification = (
-            "FAIL_ACTIVE_RUN_REGISTRY_UNINITIALIZED"
-            if "FAIL_ACTIVE_RUN_REGISTRY_UNINITIALIZED" in str(exc)
-            else "FAIL_ACTIVE_RUN_REGISTRY_INVALID"
-        )
-        return WorktreeAudit(str(target), classification, False, True, False, identity,
-                             errors=(str(exc),))
-    if active_records:
-        return WorktreeAudit(
-            str(target), "WORKTREE_REMOVE_BLOCKED_ACTIVE_RUN", False, True, False, identity,
-            active_runs=tuple(sorted(item["run_id"] for item in active_records)),
-        )
     errors: list[str] = []
     try:
         status_records = tuple(x for x in _git(
@@ -323,12 +412,12 @@ def audit_worktree(
         str(target), classification, allowed, True, False, identity, tracked, untracked,
         ignored, inventory["protected_paths"], inventory["reparse_points"],
         inventory["file_count"], inventory["total_bytes"], inventory["complete"],
-        inventory["inaccessible_paths"], tuple(errors), (),
+        inventory["inaccessible_paths"], tuple(errors),
     )
 
 
 def remove_worktree(worktree: str | Path, *, repository_root: str | Path) -> WorktreeRemoval:
-    """Remove only while holding the launch lock through the final Git removal."""
+    """Remove only while holding the safety lock through final Git removal."""
     try:
         with worktree_safety_lock(repository_root):
             first = audit_worktree(worktree, repository_root=repository_root, _lock_held=True)
@@ -392,7 +481,7 @@ def remove_worktree(worktree: str | Path, *, repository_root: str | Path) -> Wor
                                        remaining is not None, detail, second)
             return WorktreeRemoval("WORKTREE_REMOVED", True, True, False, False, detail, second)
     except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
-        return WorktreeRemoval("FAIL_ACTIVE_RUN_REGISTRY_INVALID", False, False,
+        return WorktreeRemoval("FAIL_WORKTREE_SAFETY_LOCK", False, False,
                                Path(worktree).exists(), None, str(exc))
 
 
@@ -401,21 +490,11 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(description="Fail-closed Git worktree safety auditor")
     sub = parser.add_subparsers(dest="command", required=True)
-    initialize = sub.add_parser("initialize-registry")
-    initialize.add_argument("--repository-root", default=str(Path(__file__).resolve().parents[3]))
-    initialize.add_argument("--confirm-no-unregistered-active-runs", action="store_true", required=True)
     for command in ("audit", "remove"):
         item = sub.add_parser(command)
         item.add_argument("worktree")
         item.add_argument("--repository-root", default=str(Path(__file__).resolve().parents[3]))
     args = parser.parse_args(argv)
-    if args.command == "initialize-registry":
-        result = initialize_active_run_registry(
-            args.repository_root,
-            confirm_no_unregistered_active_runs=args.confirm_no_unregistered_active_runs,
-        )
-        print(json.dumps(result, ensure_ascii=False, indent=2))
-        return 0
     if args.command == "audit":
         result: Any = audit_worktree(args.worktree, repository_root=args.repository_root)
         print(json.dumps(asdict(result), ensure_ascii=False, indent=2))
@@ -425,4 +504,7 @@ def main(argv: list[str] | None = None) -> int:
     return 0 if result.classification == "WORKTREE_REMOVED" else 1
 
 
-__all__ = ["WorktreeAudit", "WorktreeIdentity", "WorktreeRemoval", "audit_worktree", "main", "remove_worktree"]
+__all__ = [
+    "WorktreeAudit", "WorktreeIdentity", "WorktreeRemoval", "audit_worktree",
+    "git_common_dir", "main", "remove_worktree", "worktree_safety_lock",
+]

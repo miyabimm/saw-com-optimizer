@@ -371,20 +371,6 @@ def _successful_completion_record(run_directory: Path) -> bool:
     if (marker.get("disposition") != RunDisposition.COMPLETED.value
             or marker.get("status") != RunDisposition.COMPLETED.value):
         return False
-    status_path = run_directory / "status.json"
-    if status_path.is_file():
-        try:
-            status = json.loads(status_path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, json.JSONDecodeError):
-            return False
-        return (
-            status.get("optimizer_state") == RunDisposition.COMPLETED.value
-            and status.get("exit_code") == 0
-            and status.get("state") not in {
-                RunDisposition.FAILED.value,
-                RunDisposition.REVIEW_WAITING.value,
-            }
-        )
     return True
 
 
@@ -473,10 +459,9 @@ def complete_study_run(
 ) -> dict[str, Any]:
     """Persist an explicit lifecycle disposition and finalize completed runs.
 
-    Runs carrying a legacy orchestration manifest record completion here but do
-    not finalize its separately owned checkpoint lifecycle. Direct study callers
-    finalize managed checkpoints only with an explicit COMPLETED disposition.
-    Missing disposition is UNKNOWN and keeps runtime recovery generations intact.
+    Managed checkpoints are finalized only with an explicit COMPLETED
+    disposition. Missing or ambiguous disposition is UNKNOWN and keeps runtime
+    recovery generations intact.
     """
     root = Path(run_directory).resolve()
     if disposition is None or not isinstance(disposition, RunDisposition):
@@ -498,8 +483,6 @@ def complete_study_run(
     _atomic_write_json(root / "metadata" / "run_completion.json", record)
     if resolved is not RunDisposition.COMPLETED:
         return {"status": resolved.value, "finalized_streams": 0}
-    if (root / "run_manifest.json").exists():
-        return {"status": "COMPLETION_RECORDED", "finalized_streams": 0}
     return finalize_run_checkpoints(root)
 
 

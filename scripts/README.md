@@ -23,5 +23,5 @@ historical reports, which remain preserved evidence.
 
 `worktree_safety.py` delegates to the retained safety implementation in
 `sawopt.orchestration.worktree_safety`; see
-[the worktree safety guide](../docs/guides/worktree_safety.md). Preserve this
-safety path until a reviewed replacement exists.
+[the worktree safety guide](../docs/guides/worktree_safety.md). It audits Git
+identity and checkout contents, not external run roots or process state.

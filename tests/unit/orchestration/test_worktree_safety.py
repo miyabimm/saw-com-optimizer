@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -25,9 +26,6 @@ class WorktreeSafetyTests(unittest.TestCase):
         self.git(self.repository, "add", ".gitignore", "tracked.txt")
         self.git(self.repository, "commit", "-m", "baseline")
         self.git(self.repository, "worktree", "add", "--detach", str(self.worktree), "HEAD")
-        worktree_safety.initialize_active_run_registry(
-            self.repository, confirm_no_unregistered_active_runs=True,
-        )
 
     def tearDown(self):
         self.temporary.cleanup()
@@ -202,39 +200,17 @@ class WorktreeSafetyTests(unittest.TestCase):
         self.assertEqual(audit.classification, "FAIL_PRIMARY_WORKTREE_IDENTITY_UNKNOWN")
         self.assertFalse(audit.deletion_allowed)
 
-    def test_uninitialized_registry_fails_closed(self):
-        registry = worktree_safety.registry_directory(self.repository)
-        for entry in registry.iterdir():
-            entry.unlink()
-        registry.rmdir()
-        audit = self.audit()
-        self.assertFalse(audit.deletion_allowed)
-        self.assertEqual(audit.classification, "FAIL_ACTIVE_RUN_REGISTRY_UNINITIALIZED")
+    def test_stale_worktree_safety_lock_is_reclaimed(self):
+        common = worktree_safety.git_common_dir(self.repository)
+        lock = common / worktree_safety.LOCK_NAME
+        lock.write_text(json.dumps({
+            "pid": 99999999,
+            "created_at": "2000-01-01T00:00:00+00:00",
+            "hostname": "dead-host",
+        }), encoding="utf-8")
 
-    def test_active_run_blocks_worktree_until_explicit_release(self):
-        self.make_environment()
-        identity = next(
-            item for item in worktree_safety._worktree_identities(self.repository)
-            if worktree_safety._path_equal(item.path, self.worktree)
-        )
-        worktree_safety.register_active_run(
-            self.repository, run_id="20261004_test001", run_dir=self.base / "runs" / "external",
-            source_worktree=self.worktree, source_head=identity.head,
-            source_branch=identity.branch,
-        )
-        audit = self.audit()
-        self.assertFalse(audit.deletion_allowed)
-        self.assertEqual(audit.classification, "WORKTREE_REMOVE_BLOCKED_ACTIVE_RUN")
-        self.assertEqual(audit.active_runs, ("20261004_test001",))
-        self.assertTrue(worktree_safety.release_active_run(self.repository, run_id="20261004_test001"))
         self.assertTrue(self.audit().deletion_allowed)
-
-    def test_corrupt_active_run_registry_fails_closed(self):
-        registry = worktree_safety.registry_directory(self.repository)
-        (registry / "broken.json").write_text("{broken", encoding="utf-8")
-        audit = self.audit()
-        self.assertFalse(audit.deletion_allowed)
-        self.assertEqual(audit.classification, "FAIL_ACTIVE_RUN_REGISTRY_INVALID")
+        self.assertFalse(lock.exists())
 
     def test_clean_removal_uses_git_and_verifies_both_postconditions(self):
         result = worktree_safety.remove_worktree(self.worktree, repository_root=self.repository)

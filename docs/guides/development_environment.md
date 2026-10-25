@@ -40,9 +40,10 @@ block setup rather than triggering an unreviewed managed-Python download.
 ## Retained safety and archived qualification tooling
 
 Before removing a worktree, follow the
-[worktree safety guide](worktree_safety.md). Its active-run registry, path,
-process, lock, and data protections are separate safety responsibilities; do
-not weaken them as part of environment cleanup.
+[worktree safety guide](worktree_safety.md). Its Git identity, filesystem,
+path, and lock checks protect only the selected checkout; they do not inventory
+external runs or process state and cannot establish that no external job uses
+it.
 
 [`../qualifications/wsl2_core_qualification.md`](../qualifications/wsl2_core_qualification.md)
 is an archival, non-operational record. Issue #118 removed the retired WSL

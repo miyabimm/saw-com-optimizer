@@ -11,10 +11,6 @@ from sawopt.io.checkpoints import (
     finalize_run_checkpoints,
 )
 from sawopt.io.lifecycle import RunDisposition
-from sawopt.io.legacy_lifecycle import (
-    LEGACY_REVIEW_WAITING_MARKERS,
-    legacy_process_disposition,
-)
 from sawopt.optimization.checkpoint_session import LShadeCheckpointSession
 from sawopt.optimization.lshade import LShadeBackend
 from sawopt.studies.lshade_records import lshade_record, serialize_lshade_record
@@ -232,33 +228,6 @@ def test_failed_finalize_keeps_recovery_until_completion_marker(tmp_path):
     assert store.previous_path.exists()
 
 
-def test_orchestrated_finalization_waits_for_explicit_completed_status(tmp_path):
-    store = CheckpointStore(tmp_path / "checkpoints", run_directory=tmp_path)
-    store.write(_state_value(1))
-    store.write(_state_value(2))
-    (tmp_path / "run_manifest.json").write_text("{}", encoding="utf-8")
-    _write_json(tmp_path / "status.json", {
-        "state": "RUNNING", "optimizer_state": "RUNNING", "exit_code": None,
-    })
-
-    recorded = complete_study_run(
-        tmp_path, {"status": "STUDY_COMPLETE"},
-        disposition=RunDisposition.COMPLETED,
-    )
-    assert recorded["status"] == "COMPLETION_RECORDED"
-    assert store.latest_path.exists()
-    assert store.previous_path.exists()
-
-    _write_json(tmp_path / "status.json", {
-        "state": "COMPLETED", "optimizer_state": "COMPLETED", "exit_code": 0,
-    })
-    finalized = finalize_run_checkpoints(tmp_path)
-    assert finalized["status"] == "FINALIZED"
-    assert store.final_path.exists()
-    assert not store.latest_path.exists()
-    assert not store.previous_path.exists()
-
-
 def test_explicit_failed_disposition_records_and_preserves_recovery(tmp_path):
     store = CheckpointStore(tmp_path / "checkpoints", run_directory=tmp_path)
     store.write(_state_value(1))
@@ -312,22 +281,12 @@ def test_missing_or_unknown_disposition_never_finalizes(tmp_path):
     assert not store.final_path.exists()
 
 
-@pytest.mark.parametrize("marker", LEGACY_REVIEW_WAITING_MARKERS)
-def test_legacy_review_markers_keep_their_historical_disposition(tmp_path, marker):
-    (tmp_path / marker).write_text("review\n", encoding="utf-8")
-    assert legacy_process_disposition(tmp_path, return_code=0) is RunDisposition.REVIEW_WAITING
-
-
-def test_legacy_complete_stop_without_review_marker_remains_completed(tmp_path):
-    (tmp_path / "STAGE3_6_GATE2A_COMPLETE_STOP.txt").write_text("complete\n", encoding="utf-8")
-    assert legacy_process_disposition(tmp_path, return_code=0) is RunDisposition.COMPLETED
-    assert legacy_process_disposition(tmp_path, return_code=2) is RunDisposition.FAILED
-
-
-def test_generic_core_honors_explicit_disposition_without_inspecting_stage_markers(tmp_path):
+def test_generic_core_honors_explicit_disposition_without_stage_marker_translation(tmp_path):
     store = CheckpointStore(tmp_path / "checkpoints", run_directory=tmp_path)
     store.write(_state_value(5))
-    (tmp_path / LEGACY_REVIEW_WAITING_MARKERS[0]).write_text("historical\n", encoding="utf-8")
+    (tmp_path / "PHASE_C_SUPPLEMENT_COMPLETE_WAITING_FOR_REVIEW.txt").write_text(
+        "historical\n", encoding="utf-8",
+    )
 
     result = complete_study_run(tmp_path, disposition=RunDisposition.COMPLETED)
     assert result["status"] == "FINALIZED"

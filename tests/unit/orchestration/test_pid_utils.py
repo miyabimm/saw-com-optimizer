@@ -4,7 +4,7 @@ import sys
 import time
 import unittest
 
-from sawopt.orchestration import administrative_closeout, pid_utils, run_manager
+from sawopt.orchestration import pid_utils, worktree_safety
 
 
 class PidLivenessTests(unittest.TestCase):
@@ -31,9 +31,8 @@ class PidLivenessTests(unittest.TestCase):
             child.wait(timeout=5)
         self.assertFalse(pid_utils.pid_exists(child.pid))
 
-    def test_all_orchestration_callers_share_platform_safe_implementation(self):
-        self.assertIs(administrative_closeout.pid_exists, pid_utils.pid_exists)
-        self.assertIs(run_manager._pid_exists, pid_utils.pid_exists)
+    def test_worktree_lock_uses_platform_safe_pid_probe(self):
+        self.assertIs(worktree_safety.pid_exists, pid_utils.pid_exists)
 
 
 if __name__ == "__main__":
