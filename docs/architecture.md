@@ -80,7 +80,7 @@ checkpoint fallback while preserving rolling checkpoint/RNG state.
 | `src/sawopt/io/` | Current checkpoint/provenance services, future-only `io.experiment_store`, and the isolated Issue #80 `io.synthetic_task_ledger`. Issue #130 removes `io.run_store` and its legacy `io.serialization` writer with the COM executor; neither R5 storage nor the task ledger reads or rewrites legacy manifests. | Keep current checkpoint and external raw ownership; the countdown ledger remains synthetic-only and local to an explicit private test root. |
 | `src/sawopt/studies/` | Q1-A under `stage5a2/` and reusable DMS reference/grid/provider/initial-design helpers in `dms_topology_common.py` remain. Historical Stage 3/4 executors, DMS screening runtime, and Stage 3.9B/5A-1 audits are removed under Issue #129. | Keep Q1-A identity/canonicalization/RNG/journal/initialization and DMS reference parity unchanged; no retired study runner/audit API remains. |
 | `src/sawopt/reporting/` | R5 `experiment_review` and the material-profile metadata helper used by DMS reference code remain. Old saved-run reports, Stage 4 candidate-integrity adapters, material HTML rendering, and ZIP review workflows are removed with exclusive callers/tests. | Keep R5 schema v1 and DMS metadata semantics unchanged; historical reports remain immutable records, not executable pipelines. |
-| `src/sawopt/orchestration/`, `runtime/` | Issue #128 removes the legacy schema-v1–v4 run status/publication readers and writers, active-run registry, administrative closeout, and their manifest models. The standalone worktree auditor remains; R5 external-data-root validation is independently owned by `io.experiment_store`. | Keep only current independent safety behavior; do not restore legacy status/publication/closeout APIs or imply active-run detection. |
+| `src/sawopt/runtime/` | Owns the retained runtime-level environment behavior. The standalone worktree-safety utility was retired under Issue #143; R5 external-data-root validation remains independently owned by `io.experiment_store`. | Keep runtime behavior separate from IO and scientific ownership; no project-local worktree lifecycle tool is supported. |
 | `src/sawopt/cli.py`; retired `src/sawopt/__main__.py` | The `sawopt` console entry point and `python -m sawopt.cli` expose synthetic `validate`/`run`, `review export` for an existing closed R5 raw run, and `synthetic-task` launch/status/attach/resume/stop. The synthetic run injects response metrics and is not COM/FE evaluation; review export is a postprocessor and does not launch work. There is no `python -m sawopt` dispatcher or old `export-review` alias. | Keep each path within its documented software-only contract. The task ledger is not scientific task/optimizer resume; R5 review readiness is not scientific acceptance. |
 
 The detailed pre-R2 inventory, module list, configs/tests, and observed package
@@ -109,25 +109,28 @@ and report/export pipelines rather than retaining callable compatibility paths.
 Issue #130 also removes the uncalled historical COM optimizer runner and its
 exclusive persistence/history helpers. The standalone SciPy-DE strategy,
 optimizer services, and narrow DMS material-profile metadata helper remain for
-their distinct current ownership/contracts. The standalone worktree-safety
-implementation remains independent and does not expose a study runner.
+their distinct current ownership/contracts. Issue #143 retired the separate
+worktree-safety utility; R5 external-data-root validation remains owned by
+`io.experiment_store` and does not provide worktree lifecycle operations.
 
 The current source is the result of staged R2–R6 changes. Reusable COM,
-design/evaluation, optimizer/checkpoint, Q1-A, R5, synthetic-task, independent
-worktree/path safety, and retained DMS reference/parity responsibilities
-remain. R6-L1 through L3 retired the legacy lifecycle, historical execution
-surfaces, and uncalled COM runner; the L4 closeout record gives their scope and
-before/after counts. The old scientific entrypoints, compatibility readers,
-and removed APIs are not supported, aliased, or retained as rejection stubs.
+design/evaluation, optimizer/checkpoint, Q1-A, R5 external-data-root validation,
+synthetic-task, and retained DMS reference/parity responsibilities remain.
+Issue #143 retired the separate worktree-safety utility without changing R5
+root validation. R6-L1 through L3 retired the legacy lifecycle, historical
+execution surfaces, and uncalled COM runner; the L4 closeout record gives their
+scope and before/after counts. The old scientific entrypoints, compatibility
+readers, and removed APIs are not supported, aliased, or retained as rejection
+stubs.
 The R3/R4/R6 and R7 documents linked elsewhere in this repository are dated
 evidence for their specific reviews, not instructions to resume old work.
 
 R4's optimizer consolidation did not qualify Q1 or establish cross-CPU bitwise
-identity. R5 implements only future raw/review storage contracts. Independent
-worktree-safety tooling remains separate from R5 external-data-root validation;
-neither inventories active runs or process state. No software stage authorizes a
-change to equations, ranking, bounds, Q0/Q1 semantics, run conditions, or
-scientific execution.
+identity. R5 implements only future raw/review storage contracts. The external
+data-root validator rejects repository/worktree containment but does not
+inventory active runs or process state; no standalone worktree-safety tool is
+retained. No software stage authorizes a change to equations, ranking, bounds,
+Q0/Q1 semantics, run conditions, or scientific execution.
 
 ## Q1-A implementation and evidence boundary
 

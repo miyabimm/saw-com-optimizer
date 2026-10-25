@@ -136,11 +136,14 @@ free-space requirements. Run initialization requires a positive caller-declared
 free-space estimate. Worktree-discovery uses the package repository's Git
 inventory and cannot be overridden by the caller. Worktree-discovery or
 path-trust uncertainty is a validation failure, not permission to fall back.
-Create the run exclusively and race-aware; on initialization failure, leave no
-partial manifest or misleading run. Preflight must not mutate a rejected
-destination. If an artifact becomes visible but its manifest transaction fails,
-retain the orphan and the prior successful artifacts unchanged; do not auto-delete
-or repair it. Review export fails closed on the unregistered file/hash mismatch.
+This R5 data-root validation remains in `io.experiment_store`; Issue #143
+retired the separate worktree-safety utility, and this validation is not a
+worktree lifecycle tool. Create the run exclusively and race-aware; on
+initialization failure, leave no partial manifest or misleading run. Preflight
+must not mutate a rejected destination. If an artifact becomes visible but its
+manifest transaction fails, retain the orphan and the prior successful
+artifacts unchanged; do not auto-delete or repair it. Review export fails
+closed on the unregistered file/hash mismatch.
 Treat that raw run as invalid evidence and preserve it for incident review; use a
 new unique run ID for any separately authorized future work.
 

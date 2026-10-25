@@ -1,7 +1,7 @@
 # Current helper scripts
 
-Scripts here are verification or safety utilities, not study launchers. The
-current CLI (`sawopt` / `python -m sawopt.cli`) is synthetic/injected-only; no
+Scripts here are verification and diagnostic utilities, not study launchers.
+The current CLI (`sawopt` / `python -m sawopt.cli`) is synthetic/injected-only; no
 script authorizes COM/FE, optimizer qualification, production, or historical
 raw/checkpoint access. Follow the active policies in
 [`docs/README.md`](../docs/README.md), especially
@@ -17,9 +17,6 @@ Retained utilities include:
   `design.canonicalization` leaf.
 - `check_stage5a2_foundation_imports.py` and
   `check_stage5a2_pure_leaf_import.py`: preserve the Q1-A import boundaries.
-- `worktree_safety.py`: delegates to the independent retained worktree/path
-  safety implementation. It audits checkout identity and contents, not
-  external run roots or process state.
 
 Stage 3/4 study execution, historical audit/report generation, legacy
 PowerShell launchers, and one-off power/plot scripts were retired under Issue

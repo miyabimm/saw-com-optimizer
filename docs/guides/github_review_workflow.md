@@ -85,8 +85,11 @@ or administrative closeout procedures. Issue #128 removed the historical
 schema-v1–v4 run-status/publication lifecycle and its active-run registry; no
 replacement parser or publisher is provided. R5 `sawopt review export` remains
 a separate future-only package export and does not publish to GitHub or mutate
-legacy run state. The standalone worktree/path safety tools remain, but do not
-inventory external runs or establish active-run absence.
+legacy run state. The project-local worktree-safety utility was retired under
+Issue #143. R5 data-root validation rejects repository/worktree containment
+but does not inventory active external runs or process state; future worktree
+operations remain separately authorized. See the [worktree operations
+policy](worktree_safety.md).
 
 The dated [Issue #108 C1 disposition](../plans/issue108_r6c1_codex_removal_20261024.md)
 and [Issue #111 C2A disposition](../plans/issue111_r6c2a_legacy_surface_disposition_20261024.md)

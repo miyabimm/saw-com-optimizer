@@ -28,8 +28,9 @@ SAW study, production work, resume, or changed scientific conditions.
   retire obsolete tracked execution templates without modifying frozen run
   snapshots or evidence.
 - Any future R5 run requires an explicitly configured external
-  `SAWOPT_DATA_ROOT`; rejected paths fail closed. Worktree/repository
-  containment and independent path/worktree safeguards remain separate.
+  `SAWOPT_DATA_ROOT`; rejected paths fail closed. `io.experiment_store`
+  rejects repository/worktree containment. The separate project-local
+  worktree-safety utility was retired under Issue #143.
 - Keep raw numerical data and recovery-heavy artifacts outside Git. Compact
   future review packages belong under the R5 path and schema documented in
   `experiments.md`; they do not replace raw preservation or independent review.
@@ -39,7 +40,6 @@ SAW study, production work, resume, or changed scientific conditions.
 - Do not include secrets, private credentials, user-specific absolute paths, or
   full raw checkpoints/populations/caches in a review package.
 
-For checkout-safety details, use the
-[worktree safety guide](worktree_safety.md). It protects Git identity and
-checkout contents; it does not inventory external run roots or process state.
-The existence of retained safety tools does not authorize or enable a run.
+For future worktree-operation conditions, use the
+[worktree operations policy](worktree_safety.md). It is guidance, not a
+checkout-inspection utility or run authorization.
