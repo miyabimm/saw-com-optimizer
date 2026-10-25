@@ -88,6 +88,8 @@ substitute a weighted objective, relax constraints, widen bounds, or upgrade a
 finite search into a proof.
 
 A roadmap stage, planning document, issue, software gate, or successful test is
-not authorization for a COM/FE calculation, optimizer experiment, production
-run, budget extension, or changed scientific condition. See
+not authorization for a new scientific COM/FE study, optimizer experiment,
+production run, budget extension, or changed scientific condition. Existing
+bounded fixed-input COM regression and deterministic optimizer unit/integration
+tests are ordinary software verification, not scientific qualification. See
 [experiments.md](experiments.md) for the approval boundary.

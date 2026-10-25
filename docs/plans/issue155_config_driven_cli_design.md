@@ -114,6 +114,18 @@ do not alter or migrate v1 in place.
   test-owned fixtures. Do not introduce ad hoc experiment scripts or a
   Stage 5A-only runner.
 
+**Naming convention for future inputs:** use
+`configs/experiments/stage5a/<experiment_id>.yaml`, where the filename stem
+matches the explicit R5-safe `experiment_id` in the effective config. Give each
+newly authorized frozen protocol revision a distinct versioned experiment ID
+(e.g. `stage5a2-comparison-v01` as a *non-executable naming illustration*);
+never silently modify a previously frozen config under the same name. R5 owns
+the generated `<run_id>` and exclusive runtime staging names; do not create
+manual per-run scratch folders in the repository. Effective config and pinned
+scientific inputs are snapshotted by R5 in the external run root. Local software
+tests use test-owned temporary roots, never historical run locations. A naming
+example does not authorize a real experiment.
+
 After independent review and scientific closeout, raw retention/deletion or
 archival is a separate lifecycle decision. Never move or rewrite historical
 configs, checkpoints, source identities, raw runs, or reports as part of this
