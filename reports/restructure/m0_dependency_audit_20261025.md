@@ -183,7 +183,7 @@ No file/function in this matrix has a supported M0 **`DELETE_UNUSED`** or **`MOV
 
 ```text
 Scientific Core (logical)
-  physics + design ──→ evaluation
+  evaluation ─────────→ physics / design
   optimization ──────→ design / evaluation
   optimization ──────→ io.checkpoints + io.lifecycle (narrow persistence exception)
   problem.evaluator.dense ──→ evaluation + optimization.adaptive_frequency/cache (deferred exception)
@@ -193,7 +193,8 @@ Scientific Core (logical)
 
 Execution Harness (logical)
   cli ──→ strict config + injected optimizer/store/review composition
-  cli ──→ synthetic task ledger ──→ synthetic_worker subprocess
+  cli ──→ synthetic task ledger / recovery
+  cli ──→ synthetic_worker subprocess (fixed argv; worker also uses ledger)
 
 Experiment Data & Review (logical)
   R5 raw store (io.experiment_store) ──→ validated closed-run evidence
@@ -221,7 +222,7 @@ Each stage below is **`PROPOSAL / IMPLEMENTATION_NOT_YET_AUTHORIZED`**. Issue #1
 | **M1 — Scientific Core logical-boundary stabilization** | Candidate focused work only in `tests/unit/test_architecture.py`, `tests/unit/physics/test_import_boundaries.py`, and, if reviewed, source-level docstrings. Keep `physics/`, `design/`, `evaluation.py`, `optimization/`, `problem.evaluator.dense`, `problem.released_dms`, Q1-A, DMS references and existing optimizer→checkpoint IO. Decide separately whether test-only/no-runtime candidates in §4 have an actual supported owner. | Focused AST/import tests; physics analytic/reference tests; design canonicalization 92-case golden; optimizer comparator, budget, unique-FE/RNG/checkpoint/replay tests; adaptive dense parity and DMS T0 reference parity. Stop on any proposed change to equation, units, metric/ranking, bounds, grid, FE/RNG semantics, checkpoint identity, Q1 status, or unresolved external caller. No full-space reduction or algorithm qualification. | One self-contained PR; revert that PR if an import/API or exact parity identity changes. Retain old reports/configs/raw evidence unchanged. |
 | **M2 — Harness boundary stabilization / narrowly justified pruning** | `src/sawopt/cli.py`, `synthetic_worker.py`, `io/cli_config.py`, `io/synthetic_task_ledger.py`, `io/synthetic_task_recovery.py`; only change current software contracts after test/caller evidence. Do not add a Pi, GitHub, scheduler, or science Worker adapter. | CLI/module/worker help and import non-dispatch; synthetic CLI/config integration tests; launch/idempotency/status/attach/stop/resume process-identity and attempt-fencing tests; manual recovery/fail-closed scenarios. Stop before any science task/optimizer integration (#104), automatic host restart, real Pi, or changes to task identity/recovery. | One focused PR, with unchanged worker argv/source hash and state contract unless explicitly reviewed; Git revert; no existing task roots/worktrees manipulated. |
 | **M3 — R5 Data & Review boundary stabilization** | `io.experiment_store`, `reporting.experiment_review`, `sawopt review export`, and only exact owner/caller-proven helper candidates. Leave optimizer checkpoint persistence in its existing owner unless a separately tested design proves a simpler safe boundary. | Synthetic temporary fixtures only; unit/integration checks for raw/source/config/grid identity, expected cells, statuses, no-overwrite, artifact/checkpoint hashes, path containment, redaction, size, fail-closed export, and no run/evaluation dispatch. Stop before raw/checkpoint mutation, schema migration, concurrent-writer claims, GitHub publication (#98), scientific acceptance, or historical-data operation. | One self-contained PR; byte/schema identity tests; revert source change; never “roll back” by rewriting raw data or an existing review package. |
-| **M4 — independent final audit / closeout proposal** | Static DAG and supported command inventory, all dispositions/exceptions, test/inventory counts, active docs links. Candidate deletions require the per-symbol evidence standard in #145. | Review all prior exact-head diffs and CI evidence. Only the work orders' permitted unit/CLI tests may run. Any future full numerical suite or scientific/qualification step must have its own authorization and cannot be smuggled into this audit. Stop on unresolved owner decisions or unverified branch-protection claims. | No blanket cleanup commit; revert a discrete change only. Preserve historical records and all external raw/checkpoint data. |
+| **M4 — independent final audit / closeout proposal** | Static DAG and supported command inventory, all dispositions/exceptions, test/inventory counts, active docs links. Candidate deletions require the per-symbol evidence standard in #145. | Review all prior exact-head diffs and CI evidence. Run the locked full regression suite and fixed-array diagnostic where required by an authorized software work order; these are software regression checks, not COM/FE experiments. Any new COM/FE evaluation, optimizer study, Q1 official qualification, or production run requires separate explicit owner authorization and must not be smuggled into this audit. Stop on unresolved owner decisions or unverified branch-protection claims. | No blanket cleanup commit; revert a discrete change only. Preserve historical records and all external raw/checkpoint data. |
 
 No follow-up issues were opened from M0. The `NEEDS_OWNER_DECISION` symbols stay in place until a separate owner-approved decision records current/external callers and replacement or explicit retirement scope.
 
