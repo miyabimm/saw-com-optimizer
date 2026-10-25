@@ -80,6 +80,12 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--data-root", help="explicit external raw root; otherwise SAWOPT_DATA_ROOT is required")
     run.add_argument("--repository-root", help="review-package repository root; defaults to this source repository")
 
+    review = commands.add_parser("review", help="postprocess a closed R5 raw run")
+    review_commands = review.add_subparsers(dest="review_command", required=True)
+    export = review_commands.add_parser("export", help="export a closed raw run to the R5 review package")
+    export.add_argument("--run", required=True, help="absolute path to an existing closed sawopt.raw_run/1 directory")
+    export.add_argument("--repository-root", help="review-package repository root; defaults to this source repository")
+
     task = commands.add_parser(
         "synthetic-task", help="launch or observe an isolated synthetic countdown task (Linux/WSL2 only)",
     )
@@ -359,6 +365,39 @@ def run_experiment(
     }
 
 
+def _review_export_main(
+    args: argparse.Namespace,
+    *,
+    repository_root: str | os.PathLike[str] | None,
+) -> int:
+    try:
+        raw_run_directory = Path(args.run)
+        if not raw_run_directory.is_absolute():
+            raise ValueError("--run must be an absolute raw-run path")
+        from .reporting.experiment_review import export_review_package
+
+        exported = export_review_package(
+            raw_run_directory,
+            repository_root=args.repository_root or repository_root or _project_root(),
+        )
+        print(json.dumps({
+            "status": exported.status,
+            "package_status": exported.package_status,
+            "experiment_id": exported.experiment_id,
+            "run_id": exported.run_id,
+            "review_directory": exported.path,
+        }, sort_keys=True))
+        return 0
+    except Exception:
+        print(json.dumps({
+            "error": {
+                "code": "REVIEW_EXPORT_FAILED",
+                "message": "review export failed; no new review package was published",
+            },
+        }, sort_keys=True), file=sys.stderr)
+        return 2
+
+
 def _synthetic_task_main(args: argparse.Namespace) -> int:
     from .io.synthetic_task_ledger import SyntheticTaskError, SyntheticTaskLedger
 
@@ -453,6 +492,8 @@ def main(
 ) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.command == "review":
+        return _review_export_main(args, repository_root=repository_root)
     if args.command == "synthetic-task":
         return _synthetic_task_main(args)
     try:
