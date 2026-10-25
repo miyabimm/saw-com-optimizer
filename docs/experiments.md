@@ -3,13 +3,24 @@
 ## Authorization and immutable conditions
 
 An issue, roadmap stage, design document, test pass, or software work-unit
-acceptance is not authorization to run COM/FE calculations, an optimizer study,
-a production workload, a resume, or a new seed/budget/topology. State purpose,
+acceptance is not authorization for a new scientific COM/FE evaluation study,
+an optimizer research experiment, a production workload, a resume, or a new
+seed/budget/topology. State purpose,
 inputs, COM profile, frequency specification, topology/variables/bounds,
 geometry/area constraints, independent `Zs`/`Zl`, optimizer/version, seed,
 budget, search and validation grids, resource policy, source SHA, raw output
 path, and review evidence before execution. Obtain separate explicit owner
 authorization for every scientific/production run and material change.
+
+**Software-verification allowance (owner clarification, 2026-10-26):** Existing
+bounded fixed-input COM/physics numerical regressions and small deterministic
+optimizer unit/integration fixtures may run in ordinary tests/CI without a
+separate research-run authorization. They verify software behavior only;
+no new Stage 5A optimization comparison, systematic parameter study, historical
+experiment replay, or production execution is authorized by this allowance.
+The formal Q1 qualification path remains synthetic-only: unrelated routine
+physics regressions do not convert a Q1 gate into a COM-based qualification or
+establish Q1 acceptance. Record exactly which checks executed and their limits.
 
 A finite budget yields a **best-found** design under those frozen conditions,
 not a proof of a global optimum. Infeasible best-found results are valid outputs;

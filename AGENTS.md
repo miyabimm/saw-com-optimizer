@@ -50,9 +50,12 @@ Follow the roadmap's staged gates. Stage 4C remains
 diagnostic/regression case, not the universal product target. Q0 is
 `CLOSED / ACCEPTED`; Q1-A is `WORK_UNIT_READY / CLOSED`, but **none of
 Q1-01…Q1-23 has passed**. Q1-B/C/D/E are `NOT AUTHORIZED / NOT STARTED`.
-Do not run COM/FE, optimizer qualification, a real SAW study, resume Stage 4C,
-change a budget/bound/constraint, or launch production without the separate
-authorization required by [`docs/experiments.md`](docs/experiments.md).
+Do not run new scientific COM/FE studies, optimizer qualification experiments,
+a real SAW study, resume Stage 4C, change a budget/bound/constraint, or launch
+production without the separate authorization required by
+[`docs/experiments.md`](docs/experiments.md). Existing bounded, fixed-input COM
+numerical regression and deterministic optimizer unit/integration tests are
+allowed as ordinary software verification; they confer no scientific approval.
 
 Historical source identities and scientific raw/evidence are immutable. Do not
 move, delete, overwrite, repair, or migrate raw runs, checkpoints, configs, or
