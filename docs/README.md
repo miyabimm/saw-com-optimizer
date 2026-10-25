@@ -38,6 +38,10 @@ execution:
   records the verified copy and its limits. [R6-L4 reconstruction closeout](history/r6_l4_closeout_20261025.md)
   records the software inventory, CI disposition, deferred work, and proposed
   issue closeout; it is an audit record, not a new product or scientific gate.
+- [Issue #155 compatibility audit](audits/issue155_stage5a_compatibility_audit.md)
+  and [config-driven CLI design](plans/issue155_config_driven_cli_design.md)
+  record a scoped Stage 5A evidence audit and implementation proposal only;
+  they do not authorize code changes to scientific behavior or any run.
 
 Older reconstruction plans, handoffs, and issue-specific designs remain in
 Git where useful for audit. They are dated evidence, not current operating
