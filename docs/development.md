@@ -42,20 +42,19 @@ do not start gated follow-up work without the applicable owner decision.
   exact equality where identity, canonical keys, counts, or ordering are part
   of the contract; justify numerical tolerances before use.
 
-The current CI is one locked full-pytest job, not the planned risk-lane system.
-Issue #74's measured baseline, fixed selectors and lane recommendation are in
-[R7 architecture/CI audit](plans/r7_architecture_ci_audit_20261023.md). That
-report does not split or weaken the workflow: retain the full Haswell-pinned
-pytest suite and fixed-evaluation diagnostic as exact-head checks and required
-scientific/regression milestones. Any future fast/docs lane is additive and
-must not create path-, label-, or docs-only bypasses. At the R7 audit, the Pi Code GitHub request reported a 404 for main branch
-protection; independent GitHub App access returned 403 (insufficient access).
-Required-check enforcement is therefore **not independently verified**. The
-repository owner/admin must inspect branch protection and rulesets and require
-the full CI check before treating it as an enforced merge gate. The
-`KNOWN_BASELINE_FAILURE` for the obsolete agent/model routing assertion in the
-R0 inventory is historical evidence; R1-B retires that non-product test
-without changing scientific tests or CI.
+Current `.github/workflows/ci.yml` is one Ubuntu job: it installs the locked
+`test` and `benchmark` extras, runs
+`uv run --locked --extra test --extra benchmark python tools/diagnostics/evaluation_repro.py`,
+then runs the full `uv run --locked pytest` suite. Only that exact-array pytest
+step sets `OPENBLAS_CORETYPE=Haswell`; this is a test-dispatch precondition, not
+a production/runtime setting. The R7 audit and L4 review found no measured
+benefit sufficient to justify splitting lanes; the [L4 closeout record](history/r6_l4_closeout_20261025.md)
+records the current decision. Keep the full suite and diagnostic; any future
+docs/fast lane is additive and must not create
+path-, label-, or docs-only bypasses. Main branch required-check enforcement
+was **not independently verified** in the R7 audit; the repository owner/admin
+must inspect branch protection and rulesets before treating CI as an enforced
+merge gate.
 
 ## Environment and commands
 
@@ -87,11 +86,9 @@ commit URL, changed files, checks run, known failures, assumptions, and open
 issues. Docs-only work should stop at a Draft PR for independent review. Record
 changes to scientific meaning as proposals until the user decides. Production
 study implementation/config/preflight/source identity/review spec must be
-available for review before a run, but this is not run authorization. For the
-R1-A documentation cutover, stop at the Draft PR pending independent review and
-acceptance within the owner's delegation; retain the separate owner decision
-on Q1 continuation. Do not start R1-B or R2 until the applicable review and
-stage/contract decision gates are complete.
+available for review before a run, but this is not run authorization. Do not
+start gated follow-up work until its applicable review and owner decision are
+complete.
 
 ## CI direction (not yet implemented)
 
