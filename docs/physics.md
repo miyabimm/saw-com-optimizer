@@ -215,7 +215,9 @@ Implemented source: `src/sawopt/physics/{com,elements,network,
 literature_com}.py`; the provider-visible `FilterDesign` record and decoder live
 in `src/sawopt/design/space.py`, topology geometry in `src/sawopt/design/`, and
 RF metrics/constraints in `src/sawopt/evaluation.py`. Regression tests include
-`tests/unit/core/{test_reference,test_physics,test_scalar_regression,
-test_hybrid,test_stage4a_hybrid_composition}.py` and the physics import-boundary
-test. This document transcribes those current definitions and does not replace
-the code or frozen historical study contracts.
+`tests/unit/core/{test_reference,test_physics,
+test_stage4a_hybrid_composition}.py`,
+`tests/unit/evaluation/test_physical_composition.py`,
+and `tests/unit/physics/test_import_boundaries.py`. This document transcribes
+those current definitions and does not replace the code or frozen historical
+study contracts.

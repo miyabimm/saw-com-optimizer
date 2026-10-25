@@ -16,6 +16,7 @@ not constitute a supported study configuration or authorize a run.
   design dictionaries used as reference inputs. Their source run files and
   SHA-256 values are in `initial_design_origins.json`.
 
-The archived run directories, reports, and evidence remain untouched. Do not
-recreate the old runner or interpret these fixtures as permission to access
-historical raw data or launch new work.
+The archived run directories, reports, and evidence remain untouched. The
+legacy COM optimizer runner was removed under Issue #130; do not restore its
+execution path or interpret these fixtures as permission to access historical
+raw data or launch new work.

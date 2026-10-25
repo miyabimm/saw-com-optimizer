@@ -1,9 +1,8 @@
-"""Optimizer-independent checkpoint evidence derivation.
+"""L-SHADE checkpoint evidence derivation.
 
-The search backends collect traces and event telemetry; this module turns that
-telemetry into an evidence contract for checkpoint consumers. It deliberately
-preserves ``None`` when a required fact cannot be established from the saved
-record.
+This module turns current L-SHADE trace and event telemetry into an evidence
+contract for checkpoint consumers. It deliberately preserves ``None`` when a
+required fact cannot be established from the saved record.
 """
 from __future__ import annotations
 
@@ -30,69 +29,19 @@ def _number(value: Any) -> float | None:
     return value if np.isfinite(value) else None
 
 
-def _trace_primary(
-    row: Mapping[str, Any], *, legacy_comparator: str | None = None,
-) -> float | None:
-    if "primary_metric" in row:
-        return _number(row.get("primary_metric"))
-    rank_key = row.get("rank_key")
-    if not isinstance(rank_key, (list, tuple)):
-        return None
-
-    comparator = row.get("comparator", legacy_comparator)
-    if comparator not in ("FeasibilityFirstComparator", "GeometryFirstComparator"):
-        return None
-
-    # Legacy rank-key-only traces require comparator identity from the row or
-    # its study caller. Exact dimensions and category fields prevent fallback
-    # guesses for rejected, failed, or unrecognized records.
-    if (comparator == "FeasibilityFirstComparator"
-            and len(rank_key) == 5
-            and _number(rank_key[0]) in (0.0, 1.0)):
-        return _number(rank_key[1])
-    if (comparator == "GeometryFirstComparator"
-            and len(rank_key) == 7
-            and _number(rank_key[0]) == 0.0
-            and _number(rank_key[1]) == 0.0
-            and _number(rank_key[2]) in (0.0, 1.0)):
-        return _number(rank_key[3])
-    return None
+def _trace_primary(row: Mapping[str, Any]) -> float | None:
+    return _number(row.get("primary_metric")) if "primary_metric" in row else None
 
 
-def _trace_feasible(
-    row: Mapping[str, Any], *, legacy_comparator: str | None = None,
-) -> bool | None:
+def _trace_feasible(row: Mapping[str, Any]) -> bool | None:
     for field in ("primary_metric_feasible", "feasible"):
         if field in row:
             value = row.get(field)
             return bool(value) if isinstance(value, (bool, np.bool_)) else None
-
-    comparator = row.get("comparator", legacy_comparator)
-    rank_key = row.get("rank_key")
-    if rank_key is None and "rank_tuple" in row:
-        # The legacy non-L-SHADE runner serialized FeasibilityFirstComparator
-        # keys as rank_tuple.
-        comparator = comparator or "FeasibilityFirstComparator"
-        rank_key = row.get("rank_tuple")
-    if not isinstance(rank_key, (list, tuple)):
-        return None
-
-    if (comparator == "FeasibilityFirstComparator"
-            and len(rank_key) == 5
-            and _number(rank_key[0]) in (0.0, 1.0)):
-        return _number(rank_key[0]) == 0.0
-    if (comparator == "GeometryFirstComparator"
-            and len(rank_key) == 7
-            and _number(rank_key[0]) == 0.0
-            and _number(rank_key[1]) == 0.0
-            and _number(rank_key[2]) in (0.0, 1.0)):
-        return _number(rank_key[2]) == 0.0
     return None
 
 
-def _last_significant_fraction(
-    trace: Any, budget: float, *, legacy_comparator: str | None = None,
-) -> float | None:
+def _last_significant_fraction(trace: Any, budget: float) -> float | None:
     if not isinstance(trace, list) or not trace or budget <= 0:
         return None
     significant = []
@@ -100,8 +49,8 @@ def _last_significant_fraction(
     for row in trace:
         if not isinstance(row, Mapping):
             continue
-        metric = _trace_primary(row, legacy_comparator=legacy_comparator)
-        feasible = _trace_feasible(row, legacy_comparator=legacy_comparator)
+        metric = _trace_primary(row)
+        feasible = _trace_feasible(row)
         evaluation = _number(row.get("unique_evaluation"))
         if metric is None or evaluation is None:
             continue
@@ -150,7 +99,6 @@ def derive_checkpoint_evidence(
     *,
     current_budget: int | None = None,
     terminal_budget: int | None = None,
-    trace_comparator: str | None = None,
 ) -> dict[str, Any]:
     """Derive evidence without inventing values for unavailable telemetry."""
     requested = current_budget or record.get("requested_unique_design_budget")
@@ -222,10 +170,7 @@ def derive_checkpoint_evidence(
 
     fraction = record.get("fraction_of_budget_at_last_significant_improvement")
     if fraction is None:
-        fraction = _last_significant_fraction(
-            record.get("best_so_far_trace"), budget,
-            legacy_comparator=trace_comparator,
-        )
+        fraction = _last_significant_fraction(record.get("best_so_far_trace"), budget)
     result["fraction_of_budget_at_last_significant_improvement"] = _number(fraction)
     result["current_budget"] = int(current_budget) if current_budget is not None else int(budget or 0)
     result["terminal_budget"] = int(terminal_value) if terminal_value is not None else None
@@ -239,13 +184,11 @@ def apply_checkpoint_evidence(
     *,
     current_budget: int | None = None,
     terminal_budget: int | None = None,
-    trace_comparator: str | None = None,
 ) -> dict[str, Any]:
     """Return a record augmented with the derived evidence fields."""
     updated = dict(record)
     evidence = derive_checkpoint_evidence(
         updated, current_budget=current_budget, terminal_budget=terminal_budget,
-        trace_comparator=trace_comparator,
     )
     for field in EVIDENCE_FIELDS:
         updated[field] = evidence[field]

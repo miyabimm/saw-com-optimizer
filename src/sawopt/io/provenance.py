@@ -1,8 +1,8 @@
 """Versioned fingerprints for computation and reporting provenance.
 
-The historical :mod:`sawopt.io.run_store` fingerprint remains unchanged. New
-experiments can opt into schema v2 and declare the source dependencies that
-affect their numerical computation separately from their reporting code.
+Schema-v2 metadata declares the source dependencies that affect numerical
+computation separately from reporting code. Historical combined fingerprints
+are not read or migrated by this module.
 """
 from __future__ import annotations
 
@@ -144,53 +144,33 @@ def build_fingerprint_metadata(
 
 
 def read_fingerprint_metadata(metadata: Mapping[str, Any]) -> dict[str, Any]:
-    """Normalize v2 metadata or expose a legacy v1 fingerprint without edits."""
+    """Validate and normalize current schema-v2 fingerprint metadata."""
     version = metadata.get("fingerprint_schema_version", metadata.get("schema_version"))
-    if version == FINGERPRINT_SCHEMA_VERSION:
-        computation = metadata.get("computation_fingerprint")
-        reporting = metadata.get("reporting_fingerprint")
-        manifest = metadata.get("dependency_manifest")
-        if not isinstance(computation, str) or not isinstance(reporting, str):
-            raise ValueError("Schema-v2 metadata requires both fingerprints")
-        if not isinstance(manifest, Mapping):
-            raise ValueError("Schema-v2 metadata requires a dependency manifest")
-        return {
-            "fingerprint_schema_version": FINGERPRINT_SCHEMA_VERSION,
-            "computation_fingerprint": computation,
-            "reporting_fingerprint": reporting,
-            "dependency_manifest": manifest,
-        }
-
-    # Historical Stage 3.x run manifests used either `fingerprint` or a
-    # study-specific source/config fingerprint. Preserve the value verbatim.
-    legacy = metadata.get("fingerprint") or metadata.get("source_config_fingerprint")
-    if version not in (None, 1):
+    if version != FINGERPRINT_SCHEMA_VERSION:
         raise ValueError(f"Unsupported fingerprint schema version: {version}")
-    if not isinstance(legacy, str) or not legacy:
-        raise ValueError("Legacy metadata does not contain a readable fingerprint")
+
+    computation = metadata.get("computation_fingerprint")
+    reporting = metadata.get("reporting_fingerprint")
+    manifest = metadata.get("dependency_manifest")
+    if not isinstance(computation, str) or not isinstance(reporting, str):
+        raise ValueError("Schema-v2 metadata requires both fingerprints")
+    if not isinstance(manifest, Mapping):
+        raise ValueError("Schema-v2 metadata requires a dependency manifest")
     return {
-        "fingerprint_schema_version": 1,
-        "legacy_fingerprint": legacy,
-        "source_hash": metadata.get("source_hash"),
+        "fingerprint_schema_version": FINGERPRINT_SCHEMA_VERSION,
+        "computation_fingerprint": computation,
+        "reporting_fingerprint": reporting,
+        "dependency_manifest": manifest,
     }
 
 
 def computation_gate_matches(
     expected_metadata: Mapping[str, Any], actual_metadata: Mapping[str, Any],
 ) -> bool:
-    """Compare computation provenance while ignoring schema-v2 report edits.
-
-    V1 metadata is comparable only to v1 metadata and only by its original
-    combined fingerprint. A v1 value is never silently interpreted as a v2
-    computation fingerprint.
-    """
+    """Compare schema-v2 computation provenance, ignoring reporting-only edits."""
     expected = read_fingerprint_metadata(expected_metadata)
     actual = read_fingerprint_metadata(actual_metadata)
-    if expected["fingerprint_schema_version"] != actual["fingerprint_schema_version"]:
-        return False
-    if expected["fingerprint_schema_version"] == FINGERPRINT_SCHEMA_VERSION:
-        return expected["computation_fingerprint"] == actual["computation_fingerprint"]
-    return expected["legacy_fingerprint"] == actual["legacy_fingerprint"]
+    return expected["computation_fingerprint"] == actual["computation_fingerprint"]
 
 
 __all__ = [
