@@ -58,8 +58,9 @@ optimization → evaluation → design + physics
   the R4 source consolidation. The existing `problem.evaluator.dense`
   adaptive/cache/counter orchestration remains explicitly deferred and
   unchanged.
-- **`optimization/`** — L-SHADE/DE strategies and a bounded shared runner for
-  search, unique-FE budget, cache, counters, and required checkpoint state.
+- **`optimization/`** — L-SHADE/DE strategies with shared unique-FE budget,
+  cache, counter, and checkpoint services. The current synthetic CLI invokes
+  L-SHADE directly; the historical COM optimization runner is retired.
   Algorithm-specific proposal rules remain within their strategies.
 - **`io/`** — user configuration, results, frozen provenance, external raw
   storage, and only the checkpoint lifecycle required by the approved current
