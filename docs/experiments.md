@@ -106,10 +106,14 @@ remain under `checkpoints/` and retain their existing schema. The review
 exporter validates the external root read-only and streams hashes for raw files
 it does not copy.
 
-The `sawopt review export` command delegates to the existing R5 exporter; it
-only accepts an absolute path to an existing closed `sawopt.raw_run/1` run,
-does not launch or evaluate work, and publishes only to the canonical
-`reports/experiments/<experiment_id>/<run_id>/` location. It reports
+Earlier R6-C cleanup retired the separate v1–v4 review exporter; L1–L3 retired
+the old run-manifest/status lifecycle and historical study runners. There is no
+historical manifest reader or schema-compatibility alias. Frozen historical
+reports/configs remain evidence, not inputs to a current run. The standalone
+`sawopt review export` command delegates to the existing R5 exporter. It only
+accepts an absolute path to an existing closed
+`sawopt.raw_run/1` run, does not launch or evaluate work, and publishes only to
+the canonical `reports/experiments/<experiment_id>/<run_id>/` location. It reports
 `EXPORTED` or byte-identical `ALREADY_VALID` as JSON; failures return nonzero
 with a path-safe JSON error. `COMPLETED`, `FAILED`, and `INCOMPLETE` closed raw
 runs can all produce a package when their evidence satisfies the frozen

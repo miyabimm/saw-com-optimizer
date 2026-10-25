@@ -1,8 +1,8 @@
 # Physics and numerical conventions (implemented prototype)
 
 This page records the equations and conventions implemented in
-`src/sawopt/physics/` and the still-legacy metric/evaluation helpers. It does
-not certify the placeholder COM inputs as a real device model. Scientific
+`src/sawopt/physics/` and the current metric/evaluation helpers. It does not
+certify the placeholder COM inputs as a real device model. Scientific
 equations, units, terminations, or evaluation conditions must not be changed
 under a structural refactor without a reviewed scientific decision.
 

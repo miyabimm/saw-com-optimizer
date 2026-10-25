@@ -23,10 +23,14 @@ uv sync --locked --extra test
 uv run --locked pytest
 ```
 
-The current CLI is synthetic-only. Historical Stage 3/4 execution, saved-run
-reporting/ZIP workflows, and their exclusive tests were retired under Issue
-#129; historical reports and source/evidence identities remain unchanged.
-R5 output under `reports/experiments/<experiment_id>/<run_id>/` is a future-only
-schema verified with synthetic fixtures, not production approval. See
+The current design/run/task CLI paths are software-only: config validation,
+an injected synthetic evaluator, closed-R5-fixture postprocessing, and a bounded
+synthetic countdown task. These tests do not
+launch COM/FE, optimizer research, or production work. Historical Stage 3/4
+execution, saved-run reporting/ZIP workflows, and their exclusive tests were
+retired under Issue #129; historical reports and source/evidence identities
+remain unchanged. R5 output under
+`reports/experiments/<experiment_id>/<run_id>/` is a future-only schema verified
+with synthetic fixtures, not production approval. See
 [`docs/experiments.md`](../docs/experiments.md) and
 [`docs/development.md`](../docs/development.md).

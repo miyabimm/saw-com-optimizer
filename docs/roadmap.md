@@ -26,6 +26,14 @@ material attribution, manufacturability certification, and device correlation
 are not project gates. Numerical correctness, explicit units and conventions,
 modeled-constraint consistency, and reproducibility are required.
 
+**Current implementation boundary:** the repository contains reusable COM,
+design, evaluation, and optimization components, but its supported design/run
+path is synthetic/injected-only. The R5 `review export` subcommand only
+postprocesses an existing closed raw run. The integrated configurable real-SAW
+design and impedance-map workflow described above is not yet available. R5
+storage/review software and synthetic task execution are software contracts,
+not run authorization or scientific qualification.
+
 ## Historical baseline and limits
 
 - Stage 4A qualified bounded hybrid implementation/protocol behavior, not a
