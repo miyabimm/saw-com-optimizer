@@ -5,7 +5,7 @@ import unittest
 
 
 SRC = Path(__file__).parents[2] / 'src' / 'sawopt'
-FORBIDDEN_EXTERNAL_IMPORT_ROOTS = {'github', 'pi'}
+FORBIDDEN_EXTERNAL_IMPORT_ROOTS = {'github', 'github3', 'githubkit', 'PyGithub', 'pi'}
 
 
 def _absolute_import(package, node):
@@ -82,7 +82,7 @@ def _architecture_violations(module, path_name, source):
             )):
                 forbidden = True
             if owner == 'physics' and any(_matches_module(imported, f'sawopt.{root}') for root in (
-                'core', 'design', 'problem', 'optimization', 'optimizers', 'studies',
+                'core', 'design', 'evaluation', 'problem', 'optimization', 'optimizers', 'studies',
                 'reporting', 'orchestration', 'runtime', 'io', 'cli', 'synthetic_worker',
             )):
                 forbidden = True
@@ -162,8 +162,10 @@ class ArchitectureBoundaries(unittest.TestCase):
 
     def test_core_import_boundaries_reject_forbidden_edges(self):
         cases = (
-            ('sawopt.physics.fixture', 'from sawopt import cli\n', ('sawopt.cli',)),
-            ('sawopt.physics.fixture', 'import github, pi\n', ('github', 'pi')),
+            ('sawopt.physics.fixture', 'from sawopt import cli\nfrom .. import evaluation\n',
+             ('sawopt.cli', 'sawopt.evaluation')),
+            ('sawopt.physics.fixture', 'import github, github3, githubkit, PyGithub, pi\n',
+             ('github', 'github3', 'githubkit', 'PyGithub', 'pi')),
             (
                 'sawopt.design.fixture',
                 'from sawopt import synthetic_worker\nfrom .. import cli\n',
