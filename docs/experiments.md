@@ -96,15 +96,33 @@ $SAWOPT_DATA_ROOT/runs/<experiment_id>/<run_id>/
 
 The software API is separate in `sawopt.io.experiment_store`; compact export is
 `sawopt.reporting.experiment_review`. Issue #124 retired the separate legacy
-schema-v1–v4 CLI/exporter; R5 is integrated only with the synthetic/injected R6
-CLI slice, not a real research runner. The raw tree is unsafe against a
-non-cooperating concurrent writer that changes
+schema-v1–v4 CLI/exporter; R5 is available through the synthetic/injected R6
+CLI and a standalone closed-run postprocessor, not a real research runner.
+Raw trees are unsafe against a non-cooperating concurrent writer that changes
 files during review export; do not claim concurrent-writer safety. A run caller
 can register full cell outputs and logs under `cells/<cell_id>/`, `logs/`,
 `arrays/`, `populations/`, `caches/`, and `replay/`; checkpoint lifecycle files
 remain under `checkpoints/` and retain their existing schema. The review
 exporter validates the external root read-only and streams hashes for raw files
 it does not copy.
+
+The `sawopt review export` command delegates to the existing R5 exporter; it
+only accepts an absolute path to an existing closed `sawopt.raw_run/1` run,
+does not launch or evaluate work, and publishes only to the canonical
+`reports/experiments/<experiment_id>/<run_id>/` location. It reports
+`EXPORTED` or byte-identical `ALREADY_VALID` as JSON; failures return nonzero
+with a path-safe JSON error. `COMPLETED`, `FAILED`, and `INCOMPLETE` closed raw
+runs can all produce a package when their evidence satisfies the frozen
+contract. The exporter remains the sole authority on package readiness;
+`READY_FOR_REVIEW` is an integrity/evidence disposition, not a scientific
+success or acceptance.
+
+Example only for a test-owned synthetic R5 fixture and temporary repository;
+never use a real production or historical raw-run path:
+
+```bash
+sawopt review export --run /tmp/sawopt-test-data/runs/synthetic-review-test/20261025T000000Z-00000125 --repository-root /tmp/sawopt-test-review-repository
+```
 
 `experiment_id` is a lowercase hyphenated slug; `run_id` is a UTC timestamp
 plus random lowercase hex suffix. Reject missing/empty/relative roots, malformed
