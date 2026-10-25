@@ -8,5 +8,6 @@ queue procedure is supported or authorized.
 
 Use the current synthetic CLI only for its documented injected/software tasks.
 For scientific experiment authorization and R5 storage limits, see
-[`../experiments.md`](../experiments.md). For retained independent checkout
-safety, see [`worktree_safety.md`](worktree_safety.md).
+[`../experiments.md`](../experiments.md). The project-local worktree-safety
+utility was retired under Issue #143; future worktree operations are governed
+by the [worktree operations policy](worktree_safety.md).

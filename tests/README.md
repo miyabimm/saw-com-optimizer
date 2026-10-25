@@ -12,8 +12,8 @@
 - `unit/runtime/`: BLAS thread-environment override and restoration.
 - `unit/studies/test_stage5a2_foundation.py`: Q1-A software foundation and the
   frozen 92-case canonicalization golden; it does not pass a formal Q1 gate.
-- `unit/orchestration/` and synthetic-task tests: bounded synthetic Worker and
-  independent path/worktree safety; no historical study lifecycle.
+- Synthetic-task tests: bounded synthetic Worker and isolated task-root
+  protections; no historical study lifecycle or worktree-management utility.
 - `integration/`: synthetic CLI and test-owned synthetic recovery fixtures.
 
 Official validation uses the project-locked environment:

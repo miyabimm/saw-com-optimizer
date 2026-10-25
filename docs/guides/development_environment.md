@@ -37,13 +37,14 @@ and `uv.lock` tracked and never commit `.venv/`. `uv.toml` restricts interpreter
 discovery to system Python and disables Python downloads; missing prerequisites
 block setup rather than triggering an unreviewed managed-Python download.
 
-## Retained safety and archived qualification tooling
+## Worktree operations and archived qualification tooling
 
-Before removing a worktree, follow the
-[worktree safety guide](worktree_safety.md). Its Git identity, filesystem,
-path, and lock checks protect only the selected checkout; they do not inventory
-external runs or process state and cannot establish that no external job uses
-it.
+This repository no longer provides a project-local worktree audit/removal
+utility. Worktree lifecycle operations are destructive and require separate
+owner authorization. For the conditions required before any separately
+authorized removal, see the [worktree operations policy](worktree_safety.md).
+R5's external-data-root validation is not a worktree cleanup or process-state
+tool.
 
 [`../qualifications/wsl2_core_qualification.md`](../qualifications/wsl2_core_qualification.md)
 is an archival, non-operational record. Issue #118 removed the retired WSL

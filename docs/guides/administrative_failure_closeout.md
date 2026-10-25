@@ -5,7 +5,8 @@ were removed under Issue #128. No legacy run status, publication, closeout,
 resume, or migration API is supported. Historical manifests, checkpoints, and
 reports remain unchanged evidence; do not operate on them using this repository.
 
-The independent worktree/path safeguards do not enumerate active external
-runs. For current authorization and preservation policy, see
-[`../experiments.md`](../experiments.md) and
-[`worktree_safety.md`](worktree_safety.md).
+R5's external-data-root validation does not enumerate active external runs;
+the separate project-local worktree-safety utility was retired under Issue
+#143. For current authorization and preservation policy, see
+[`../experiments.md`](../experiments.md) and the
+[worktree operations policy](worktree_safety.md).
