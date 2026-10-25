@@ -9,6 +9,7 @@
   accounting, and rolling checkpoint behavior.
 - `unit/io/`, `unit/reporting/`: checkpoint, R5 external-store and review-package
   contracts.
+- `unit/runtime/`: BLAS thread-environment override and restoration.
 - `unit/studies/test_stage5a2_foundation.py`: Q1-A software foundation and the
   frozen 92-case canonicalization golden; it does not pass a formal Q1 gate.
 - `unit/orchestration/` and synthetic-task tests: bounded synthetic Worker and

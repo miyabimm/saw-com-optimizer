@@ -1,9 +1,8 @@
-"""Optimizer-independent checkpoint evidence derivation.
+"""L-SHADE checkpoint evidence derivation.
 
-The search backends collect traces and event telemetry; this module turns that
-telemetry into an evidence contract for checkpoint consumers. It deliberately
-preserves ``None`` when a required fact cannot be established from the saved
-record.
+This module turns current L-SHADE trace and event telemetry into an evidence
+contract for checkpoint consumers. It deliberately preserves ``None`` when a
+required fact cannot be established from the saved record.
 """
 from __future__ import annotations
 

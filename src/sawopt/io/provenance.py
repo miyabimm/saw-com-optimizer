@@ -1,8 +1,8 @@
 """Versioned fingerprints for computation and reporting provenance.
 
-The historical :mod:`sawopt.io.run_store` fingerprint remains unchanged. New
-experiments can opt into schema v2 and declare the source dependencies that
-affect their numerical computation separately from their reporting code.
+Schema-v2 metadata declares the source dependencies that affect numerical
+computation separately from reporting code. Historical combined fingerprints
+are not read or migrated by this module.
 """
 from __future__ import annotations
 

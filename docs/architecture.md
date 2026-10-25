@@ -16,9 +16,13 @@ status/publication/closeout and active-run registry lifecycle; R5 and the
 independent worktree/path safety tools remain separate. Issue #129 removes
 historical Stage 3/4 study executors and audits, their exclusive report/ZIP
 pipelines and tests, the legacy study-config loader, and
-one-off launch/analysis scripts. Reusable physics, design, evaluation,
-optimizer/checkpoint, Q1-A, R5, synthetic-task, independent worktree/path safety,
-and retained DMS reference/regression responsibilities remain.
+one-off launch/analysis scripts. Issue #130 removes the uncalled historical
+COM optimization runner and its exclusive run-store, JSON writer, and JSONL
+history helpers; the synthetic CLI continues to use L-SHADE with injected
+metrics, while `problem.evaluator.dense` and the separate SciPy-DE strategy are
+retained. Reusable physics, design, evaluation, optimizer/checkpoint, Q1-A, R5,
+synthetic-task, independent worktree/path safety, and retained DMS
+reference/regression responsibilities remain.
 Other C2B cleanup and R7 remain separate gates.
 The former Stage4B fingerprint reconstruction stop gate in Issue #106 is
 superseded; the frozen fingerprint, source commit, and reports remain historical
@@ -85,9 +89,9 @@ checkpoint fallback while preserving rolling checkpoint/RNG state.
 |---|---|---|
 | `src/sawopt/physics/com.py`, `network.py`, `literature_com.py`; former `src/sawopt/core/models.py` | R2 owns COM P-matrix propagation/global acoustic solve, COM providers and result record, and the real-positive-port network evaluator. R3 moves the complete provider-visible `FilterDesign` record and decoder to `design.space`, updates current callers, and removes the duplicate `core.models` module. | Physics remains in `physics/`; design records/decoding in `design/`, response and RF metrics in `evaluation.py`. |
 | Former `src/sawopt/core/metrics.py` | Legacy owner of frequency grids, response metrics, geometry and a scalar search surrogate; candidate comparison is separately owned by `optimization.selection`. R3 moves callers and removes the duplicate module. | Pure geometry to `design.geometry`; grids/metrics/feasibility and the unchanged scalar surrogate to `evaluation.py`. |
-| `src/sawopt/problem/evaluator.py`; `src/sawopt/problem/released_dms.py` | `dense` remains the adaptive/cache/counter orchestration boundary called by `optimization.runner`; `released_dms.py` remains an independent T0 parity reference. The `problem.hybrid` compatibility alias is removed. | Preserve `problem.evaluator.dense` and released-DMS parity behavior; canonical design and reusable response/evaluation remain owned by `design/`, `physics/`, and `evaluation.py`. |
-| `src/sawopt/optimization/` | After the Issue #67 source consolidation, owns L-SHADE/SciPy-DE strategies, the sole comparator, shared budget/cache/accounting/runner services, and the backend-specific checkpoint session. The separate `optimizers/` package is retired; overlapping polish APIs are owned here. | Keep the unified strategy/service owner; preserve `problem.evaluator.dense` as the deferred orchestration boundary and IO as durable checkpoint-store owner. |
-| `src/sawopt/io/` | Serialization, retained run/checkpoint services, provenance, future-only `io.experiment_store`, and the isolated Issue #80 `io.synthetic_task_ledger`. Issue #129 removes the old study YAML loader; neither R5 storage nor the task ledger wires a research runner or reinterprets a legacy manifest. | Keep current checkpoint and external raw ownership; the countdown ledger remains synthetic-only and local to an explicit private test root. |
+| `src/sawopt/problem/evaluator.py`; `src/sawopt/problem/released_dms.py` | `dense` remains the independently tested adaptive/cache/counter evaluation boundary; the synthetic CLI injects response metrics and does not dispatch it. `released_dms.py` remains an independent T0 parity reference. The `problem.hybrid` compatibility alias is removed. | Preserve `problem.evaluator.dense` and released-DMS parity behavior; canonical design and reusable response/evaluation remain owned by `design/`, `physics/`, and `evaluation.py`. |
+| `src/sawopt/optimization/` | After Issue #67, owns L-SHADE/SciPy-DE strategies, the sole comparator, shared budget/cache/accounting services, and backend-specific checkpoint session. Issue #130 removes the uncalled historical `optimization.runner` COM/run-store executor; the current synthetic CLI selects L-SHADE. The separate `optimizers/` package is retired; overlapping polish APIs are owned here. | Keep the unified strategy/service owner; preserve `problem.evaluator.dense` as the deferred evaluation boundary and IO as durable checkpoint-store owner. |
+| `src/sawopt/io/` | Current checkpoint/provenance services, future-only `io.experiment_store`, and the isolated Issue #80 `io.synthetic_task_ledger`. Issue #130 removes `io.run_store` and its legacy `io.serialization` writer with the COM executor; neither R5 storage nor the task ledger reads or rewrites legacy manifests. | Keep current checkpoint and external raw ownership; the countdown ledger remains synthetic-only and local to an explicit private test root. |
 | `src/sawopt/studies/` | Q1-A under `stage5a2/` and reusable DMS reference/grid/provider/initial-design helpers in `dms_topology_common.py` remain. Historical Stage 3/4 executors, DMS screening runtime, and Stage 3.9B/5A-1 audits are removed under Issue #129. | Keep Q1-A identity/canonicalization/RNG/journal/initialization and DMS reference parity unchanged; no retired study runner/audit API remains. |
 | `src/sawopt/reporting/` | R5 `experiment_review` and the material-profile metadata helper used by DMS reference code remain. Old saved-run reports, Stage 4 candidate-integrity adapters, material HTML rendering, and ZIP review workflows are removed with exclusive callers/tests. | Keep R5 schema v1 and DMS metadata semantics unchanged; historical reports remain immutable records, not executable pipelines. |
 | `src/sawopt/orchestration/`, `runtime/` | Issue #128 removes the legacy schema-v1–v4 run status/publication readers and writers, active-run registry, administrative closeout, and their manifest models. The standalone worktree auditor and persistent-path validation remain; they do not inventory external runs. | Keep only current independent safety behavior; do not restore legacy status/publication/closeout APIs or imply active-run detection. |
@@ -111,11 +115,14 @@ R0's static package import scan found these existing edges:
 These are the pre-R2 software dependencies, not proof that a module is dead.
 The R2 extraction now has `physics.elements → physics.com`; the other physics
 modules import only external numerical libraries or standard-library modules.
-`problem.evaluator.dense` still uses optimization cache/adaptive-frequency and
-counter services by the explicit R3/R4 disposition. Issue #129 removes old
-study execution and report/export pipelines rather than retaining callable
-compatibility paths. The narrow DMS material-profile metadata helper remains
-for the retained reference utilities. The standalone worktree/path safety
+`problem.evaluator.dense` remains the retained adaptive/cache/counter evaluation
+boundary and its numerical behavior is exercised by the adaptive-search tests;
+the synthetic CLI does not invoke it. Issue #129 removes old study execution
+and report/export pipelines rather than retaining callable compatibility paths.
+Issue #130 also removes the uncalled historical COM optimizer runner and its
+exclusive persistence/history helpers. The standalone SciPy-DE strategy,
+optimizer services, and narrow DMS material-profile metadata helper remain for
+their distinct current ownership/contracts. The standalone worktree/path safety
 implementation remains independent and does not expose a study runner.
 
 R2–R5 and the authorized synthetic/mock R6 increments are merged. R3's

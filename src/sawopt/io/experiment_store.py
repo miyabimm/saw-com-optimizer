@@ -1,6 +1,6 @@
 """Fail-closed, future-only external experiment run storage.
 
-This module is deliberately separate from the historical ``run_store`` and
+This module is deliberately separate from historical run-directory and
 orchestration schemas. It initializes only new runs and never reads, migrates,
 or repairs historical raw data.
 """

@@ -154,10 +154,10 @@ when the caller records an observed success. Missing or nonfinite numeric
 values use explicit null/status information; nonstandard JSON NaN/Infinity is
 not permitted. Checkpoint schema and FE accounting remain unchanged.
 
-Legacy `io.run_store.initialize`, the Stage-specific `external_persistent_v1`
-manifests, and existing runners are not silently reinterpreted as this schema.
-This contract creates no old-checkpoint reader and migrates no historical raw
-run.
+The retired legacy `io.run_store.initialize` run-directory format and
+Stage-specific `external_persistent_v1` manifests are not silently
+reinterpreted as this schema. This contract creates no old-checkpoint reader
+and migrates no historical raw run.
 
 ## R5 future GitHub review package (review schema v1)
 

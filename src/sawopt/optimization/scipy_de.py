@@ -8,12 +8,11 @@ from scipy.optimize import differential_evolution
 
 
 class ScipyDELegacyBackend:
-    """Compatibility backend for controlled Stage 3.2 regression runs.
+    """Standalone SciPy-DE strategy, retained separately from study execution.
 
     It deliberately retains SciPy's generation semantics and is not advertised
-    as exactly resumable.  Production continuation uses :class:`LShadeBackend`.
-    The full historical COM orchestration remains in ``runner.optimize_one``;
-    this adapter is useful for cheap backend-level comparisons and API tests.
+    as exactly resumable. The current synthetic CLI uses :class:`LShadeBackend`;
+    this backend remains an available strategy, not a COM/FE runner.
     """
 
     name = "scipy_de_legacy"
