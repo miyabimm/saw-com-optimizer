@@ -1,4 +1,4 @@
-"""Run lifecycle disposition shared by study, orchestration, and IO layers."""
+"""Run lifecycle disposition used by optimizer checkpoint finalization and IO."""
 from __future__ import annotations
 
 from enum import Enum

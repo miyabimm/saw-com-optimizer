@@ -8,8 +8,9 @@ import pytest
 PHYSICS_MODULES = ("com", "elements", "network", "literature_com")
 FORBIDDEN_ROOTS = {
     "core", "design", "problem", "optimization", "optimizers", "studies",
-    "reporting", "orchestration", "runtime",
+    "reporting", "orchestration", "runtime", "io", "cli", "synthetic_worker",
 }
+FORBIDDEN_EXTERNAL_ROOTS = {"github", "pi"}
 
 
 def _import_targets(node, package):
@@ -18,7 +19,10 @@ def _import_targets(node, package):
     if not isinstance(node, ast.ImportFrom):
         return []
     if node.level == 0:
-        return [node.module or ""]
+        base = node.module or ""
+        if base in {"sawopt", "sawopt.io"}:
+            return [f"{base}.{alias.name}" for alias in node.names]
+        return [base]
 
     package_parts = package.split(".")
     parent_count = node.level - 1
@@ -40,13 +44,16 @@ def _upward_roots(tree, package="sawopt.physics"):
                 roots.add(parts[1])
             elif target == "sawopt.*":
                 roots.update(FORBIDDEN_ROOTS)
+            elif parts[0] in FORBIDDEN_EXTERNAL_ROOTS:
+                roots.add(parts[0])
     return roots
 
 
 def _assert_no_upward_imports(tree, path):
     roots = _upward_roots(tree)
-    assert roots.isdisjoint(FORBIDDEN_ROOTS), (
-        f"{path} imports an upward package: {sorted(roots & FORBIDDEN_ROOTS)}"
+    forbidden_roots = FORBIDDEN_ROOTS | FORBIDDEN_EXTERNAL_ROOTS
+    assert roots.isdisjoint(forbidden_roots), (
+        f"{path} imports an upward package: {sorted(roots & forbidden_roots)}"
     )
 
 
@@ -64,8 +71,15 @@ def test_boundary_guard_resolves_and_rejects_relative_upward_imports():
         "from ..design.space import FilterDesign as Design\n"
         "from .. import core as legacy_core\n"
         "from .. import problem as problem_layer\n"
+        "from sawopt import cli, synthetic_worker\n"
+        "from sawopt.io import experiment_store\n"
+        "import github, pi\n"
         "from .com import block\n"
     )
-    assert _upward_roots(tree) == {"core", "design", "problem"}
+    assert _upward_roots(tree) == {
+        "core", "design", "problem", "cli", "synthetic_worker", "io", "github", "pi",
+    }
     with pytest.raises(AssertionError, match="core.*problem"):
         _assert_no_upward_imports(tree, Path("relative-import-fixture.py"))
+    with pytest.raises(AssertionError, match="github.*pi"):
+        _assert_no_upward_imports(ast.parse("import github, pi"), Path("external-fixture.py"))
