@@ -1,1 +1,1 @@
-"""Canonical study drivers, separated from reusable optimization services."""
+"""Q1-A study foundation and retained DMS reference helpers."""

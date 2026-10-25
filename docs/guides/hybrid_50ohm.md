@@ -1,37 +1,17 @@
-# 50 Ω固定：縦結合素子＋ラダー共振子
+# Historical 50 Ω hybrid workflow — retired
 
-## 電気・音響の扱い
+The former Stage 3/4 hybrid optimizer, its one-off power/plot utilities, and
+saved-run report pipeline were removed under Issue #129. This file is retained
+only as a retirement notice; it is not a design prescription, supported
+workflow, product target, or execution guide. No command to reproduce the
+historical study is provided.
 
-3-IDTの電気3ポートYから、電圧割当行列Bで `Yexternal=B.T @ Yidt @ B` を計算する。電流も同じ結線に従って合算する。
+The project roadmap records the historical limits: B28 Rx at 50/50 Ω is a
+diagnostic/regression case, not the universal product objective; Stage 4C
+remains topology-selection-unresolved. Reusable physics/evaluation modules and
+fixed numerical regressions remain, while the historical reports and source
+identities are immutable evidence.
 
-- outer_ports: 左右が外部2ポート、中央は基準設定のgrounded。
-- center_outer_same: 中央を入力、左右を同極性で出力に並列接続。
-- center_outer_opposite: 中央を入力、左右を逆極性で出力に接続。現在の鏡面対称な位相規約では伝達が相殺される。実レイアウトでの極性・包絡線の原点の校正は別途必要。
-
-1ポート共振子は反射器40本―IDT―反射器40本。IDT波長4.5～5.6 µm、対数10～60、開口30～150 µmを探索する。反射器・IDTギャップは0固定。周波数分離、Q、静電容量を独立に最適化せず、共通の仮COM定数と寸法から導く。横モード・電極抵抗・寄生電磁結合は含まない。
-
-独立な音響トラック間は電気的に接続し、トラック間音響結合はないとする。1ポート共振子の端子アドミタンスを直列枝または接地枝として節点行列へ組み込み、DMSのYと合わせて内部ノードをSchur縮約する。S行列同士の単純な積は用いない。
-
-## 構成
-
-D、S_D、D_S、P_D、D_P、S_D_S、P_D_P、SP_D、PS_D、D_SP、D_PS、S_D_P、P_D_S。Sは信号経路の共振子、Pはその位置のノードからGNDへの共振子。SP/PSの順序も別候補。レポートには最良構成の端子回路図を表示する。各追加共振子の寸法は独立で、DMS内部だけは左右対称とする。
-
-## 探索と保存
-
-標準は24個体、3シード。DMS結線比較30世代、追加構成の一次比較16世代、DMS単独＋上位3構成の追加探索40世代。各段階は同じ予算を用い、上位だけ追加予算を配分する。総計57試行を予定。各試行の物理計算前に全素子のサイズ・電極数を確認する。無効候補も履歴と評価数に含める。
-
-回路接続部は任意配線に使えるが、この初回探索はDMS単独で最良の結線に絞る。別結線が共振子追加で有利になる可能性は残る。また、親候補を共有するためシードは統計的に独立した最終設計を保証しない。
-
-入力設定全文・ソースハッシュ・依存版はmanifestに保存。完成済み試行JSONを再利用し、中断中は同一シードから再実行する。選択段階はbaseline/screenだけを参照し、再開のたびに構成選択が変わらないようにする。最良設計のチェックポイントは復旧用の記録で、DE集団状態は保存しない。旧試作runのコード指紋は更新しない。
-
-最終周波数は全域5001点に評価帯域の密グリッドを加え、共振周辺を2回細分化する。有限グリッドのため極細共振の捕捉保証はなく、一定COMによる広帯域外挿は参考値。
-
-## 面積と製造制約
-
-DMS単体は旧制約を保持。追加共振子を含む総電極本数も500以下。各トラックの長さ・幅に各60 µmの配線/パッド余白を加え、行方向に積んだ外形が900×700 µm以内であることを要求する。これは明示的な保守的配置仮定であり、詳細レイアウトや配置最適化ではない。固定メタライゼーション0.5における追加共振子の最小指幅/指間隔は探索範囲全体で0.8 µmを上回る。
-
-## 検証
-
-ハイブリッド探索は同じシードでの再現性、完了済み試行の再利用、異なるsource/load終端の伝播を確認する。COM仮定数による計算であり、実測性能や配置可能なレイアウトを保証するものではない。逆相結線の極端な減衰表示は数値下限によるもので、実測減衰値ではない。
-
-保存されたS行列の電力収支は `uv run --locked python scripts/analysis/power_budget.py runs/hybrid-50ohm` で確認できる。入力反射、負荷へ伝達、モデル内散逸または音響放射の割合を最悪挿入損失の周波数で計算する。電極抵抗を省略しているため残りの電力を実デバイスの発熱量と同一視しない。
+Before any COM/FE, optimizer, qualification, or production work, consult
+[`../experiments.md`](../experiments.md) and obtain the required separate owner
+authorization.

@@ -1,11 +1,22 @@
-# 設定ファイル構成
+# Configuration and test inputs
 
-- `models/`: COM材料・デバイス係数。現在は仮定数のみ。
-- `base/`: 帯域仕様、製造制約、基本最適化条件。
-- `studies/`: current DMS topology and hybrid study configurations.
-- `reference/`: immutable numerical inputs used by the current DMS topology study.
+The supported CLI accepts the strict synthetic example at
+[`examples/r6_synthetic_smoke.yaml`](examples/r6_synthetic_smoke.yaml). It does
+not accept historical study YAML or launch COM/FE or optimizer research.
 
-試行設定の `base_config`、基本設定の `com_file` は、それぞれのYAMLからの相対パスで指定する。
+The following files remain fixed numerical-regression or Q1-A identity inputs,
+not supported run configurations:
 
-Run the current DMS topology study with `studies/dms_topology_screening.yaml`.
-The separate 50 Ω hybrid workflow uses `studies/hybrid_50ohm.yaml`.
+- `base/b28_dms_baseline.yaml`, `models/com_params_hypothetical.yaml`, and
+  `studies/hybrid_50ohm.yaml` for current physics/evaluation regressions.
+- `studies/dms_topology_screening.yaml`, `models/stage3_7b_r1_normalized_literature_profile.yaml`,
+  and `reference/dms_topology_screening/` for retained DMS reference coverage.
+- `studies/hybrid_stage4a_qualification.yaml` and
+  `studies/hybrid_stage4c_confirmatory.yaml` as frozen Q1-A identity/contract
+  inputs; their historical executors are not retained.
+
+The old study configuration loader, Stage 3.9B/Stage 4B execution-only
+configurations, and historical review/ZIP workflow are retired. Retained YAML
+and reference inputs do not authorize re-execution. For authorization and
+historical-data boundaries, see
+[`docs/experiments.md`](../docs/experiments.md).

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Emit deterministic physics-output digests on an R2 base or head checkout."""
+"""Emit deterministic physics-output digests through the current owners."""
 from __future__ import annotations
 
 import hashlib
@@ -15,30 +15,16 @@ import yaml
 
 
 ROOT = Path.cwd().resolve()
-PHYSICS_ROOT = ROOT / "src/sawopt/physics"
-if (PHYSICS_ROOT / "com.py").is_file():
-    from sawopt.design.space import FilterDesign
-    from sawopt.design.topology import ResonatorDesign
-    from sawopt.evaluation import resonator_admittance
-    from sawopt.physics.com import FixedProvider, block, simulate_filter
-    from sawopt.physics.elements import (
-        AcousticSection,
-        circuit_y,
-        simulate_section_chain,
-    )
-    from sawopt.physics.network import evaluate
+from sawopt.design.space import FilterDesign
+from sawopt.design.topology import ResonatorDesign
+from sawopt.evaluation import resonator_admittance
+from sawopt.physics.com import FixedProvider, block, simulate_filter
+from sawopt.physics.elements import AcousticSection, circuit_y, simulate_section_chain
+from sawopt.physics.network import evaluate
 
-    def one_port(design, provider, frequencies):
-        return resonator_admittance(design, provider, frequencies)
-else:
-    from sawopt.core.com import block, simulate_filter
-    from sawopt.core.hybrid import ResonatorDesign, circuit_y, resonator_y
-    from sawopt.core.models import FilterDesign, FixedProvider
-    from sawopt.core.network import evaluate
-    from sawopt.core.topology import AcousticSection, simulate_section_chain
 
-    def one_port(design, provider, frequencies):
-        return resonator_y(design, provider, frequencies)
+def one_port(design, provider, frequencies):
+    return resonator_admittance(design, provider, frequencies)
 
 
 def _head_sha() -> str:

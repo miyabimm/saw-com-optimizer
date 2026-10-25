@@ -13,13 +13,6 @@ from sawopt.io.checkpoints import (
 from sawopt.io.lifecycle import RunDisposition
 from sawopt.optimization.checkpoint_session import LShadeCheckpointSession
 from sawopt.optimization.lshade import LShadeBackend
-from sawopt.studies.lshade_records import lshade_record, serialize_lshade_record
-
-
-def test_lshade_record_adapter_uses_canonical_serializer():
-    assert lshade_record.__globals__["serialize_lshade_record"] is serialize_lshade_record
-
-
 def _write_json(path, value):
     path.write_text(json.dumps(value, allow_nan=False), encoding="utf-8")
 
@@ -109,12 +102,10 @@ def _backend(seed=17):
     return LShadeBackend([(0, 1)] * 3, seed=seed, config=config, integer_indices=())
 
 
-def _session(root, *, resume):
+def _session(root):
     return LShadeCheckpointSession(
         root / "checkpoints",
         run_directory=root,
-        legacy_path=root / "legacy_optimizer_checkpoint.json",
-        resume=resume,
     )
 
 
@@ -126,10 +117,10 @@ def test_fixed_seed_resume_matches_uninterrupted_lshade_run(tmp_path):
     split = _backend()
     split.initialize(_sphere)
     split.advance_to_unique_budget(32)
-    _session(tmp_path, resume=False).save(split)
+    _session(tmp_path).save(split)
 
     resumed = _backend()
-    resumed_session = _session(tmp_path, resume=True)
+    resumed_session = _session(tmp_path)
     assert resumed_session.has_checkpoint
     loaded = resumed_session.load(resumed)
     assert loaded is not None
@@ -148,7 +139,7 @@ def test_fixed_seed_resume_matches_uninterrupted_lshade_run(tmp_path):
 
 
 def test_runtime_result_reference_names_logical_stream_not_future_final(tmp_path):
-    session = _session(tmp_path, resume=False)
+    session = _session(tmp_path)
     assert session.reference_path is None
     assert session.reference_metadata == {
         "checkpoint_policy": "rolling_latest_previous",
@@ -160,14 +151,8 @@ def test_runtime_result_reference_names_logical_stream_not_future_final(tmp_path
     backend.initialize(_sphere)
     backend.advance_to_unique_budget(8)
     session.save(backend)
-    record = lshade_record(
-        backend, "fixture", 17, 8, session.reference_metadata, [], 0.0, 0.0,
-        disk_resume_used=False, trajectory_index=0,
-        optimizer_wall_time_s=0.0, validation_wall_time_s=0.0,
-    )
-    assert "checkpoint" not in record
-    assert record["checkpoint_stream"] == "checkpoints"
-    assert record["checkpoint_state"] == "runtime_recovery"
+    assert session.reference_metadata["checkpoint_stream"] == "checkpoints"
+    assert session.reference_metadata["checkpoint_state"] == "runtime_recovery"
     assert session.store.latest_path.is_file()
     assert not session.store.final_path.exists()
 
@@ -389,33 +374,3 @@ def test_resume_after_finalization_preserves_previous_final_until_next_closeout(
     assert json.loads(store.final_path.read_text(encoding="utf-8")) == {"value": 1}
     finalize_direct_run(tmp_path)
     assert json.loads(store.final_path.read_text(encoding="utf-8")) == {"value": 2}
-
-
-def test_legacy_resume_keeps_using_legacy_single_file_api(tmp_path):
-    backend = _backend()
-    backend.initialize(_sphere)
-    backend.advance_to_unique_budget(24)
-    legacy_path = tmp_path / "legacy_optimizer_checkpoint.json"
-    backend.save_checkpoint(legacy_path)
-
-    session = LShadeCheckpointSession(
-        tmp_path / "stream",
-        run_directory=tmp_path,
-        legacy_path=legacy_path,
-        resume=True,
-    )
-    resumed = _backend()
-    assert session.legacy_mode
-    assert session.reference_path == legacy_path
-    assert session.reference_metadata == {
-        "checkpoint": str(legacy_path),
-        "checkpoint_state": "legacy_direct_file",
-    }
-    assert session.load(resumed) is None
-    resumed.set_evaluator(_sphere)
-    resumed.advance_to_unique_budget(32)
-    session.save(resumed)
-
-    assert legacy_path.is_file()
-    assert not session.store.latest_path.exists()
-    assert json.loads(legacy_path.read_text(encoding="utf-8"))["unique_evaluations"] == 32

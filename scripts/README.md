@@ -1,27 +1,27 @@
-# Legacy and evidence scripts
+# Current helper scripts
 
-This file is an inventory of retained scripts, not a current scientific-run
-procedure. The authoritative current operating and authorization policy is in
-[docs/README.md](../docs/README.md), especially
-[development](../docs/development.md) and
-[experiments/data](../docs/experiments.md). A script, config, old handoff, or
-passing fixture does not authorize COM/FE, optimizer research, production, Q1
-qualification, or historical-data access.
+Scripts here are verification or safety utilities, not study launchers. The
+current CLI (`sawopt` / `python -m sawopt.cli`) is synthetic/injected-only; no
+script authorizes COM/FE, optimizer qualification, production, or historical
+raw/checkpoint access. Follow the active policies in
+[`docs/README.md`](../docs/README.md), especially
+[`docs/development.md`](../docs/development.md) and
+[`docs/experiments.md`](../docs/experiments.md).
 
-The `scripts/` tree mixes historical analysis/launch artifacts with evidence
-verifiers. Preserve source-identity, parity, golden-fixture, and import-boundary
-verifiers until their evidence disposition has been reviewed. Do not run
-historical launchers or edit/migrate their raw inputs as part of R6.
+Retained utilities include:
 
-The active **software-only** R6 CLI is `uv run --locked sawopt` or
-`uv run --locked python -m sawopt.cli`; it supports strict synthetic
-configuration validation and explicitly injected synthetic fixtures. It is
-not a COM/FE runner. Issue #124 retired the separate `python -m sawopt`
-module dispatcher and the old schema-v1–v4 `export-review` exporter. This
-capability break does not affect the R5 `sawopt.review/1` package or change
-historical reports, which remain preserved evidence.
+- `verify_r2_physics_parity.py`: deterministic fixed-input digests through the
+  current physics/evaluation owners; it contains no historical-module fallback.
+- `verify_stage5a2_canonicalization_golden.py`: checks all 92 frozen cases
+  through the canonical `design.space` API and the pure
+  `design.canonicalization` leaf.
+- `check_stage5a2_foundation_imports.py` and
+  `check_stage5a2_pure_leaf_import.py`: preserve the Q1-A import boundaries.
+- `worktree_safety.py`: delegates to the independent retained worktree/path
+  safety implementation. It audits checkout identity and contents, not
+  external run roots or process state.
 
-`worktree_safety.py` delegates to the retained safety implementation in
-`sawopt.orchestration.worktree_safety`; see
-[the worktree safety guide](../docs/guides/worktree_safety.md). It audits Git
-identity and checkout contents, not external run roots or process state.
+Stage 3/4 study execution, historical audit/report generation, legacy
+PowerShell launchers, and one-off power/plot scripts were retired under Issue
+#129. Their historical reports and source/evidence identities remain records;
+no old entrypoint or replacement compatibility layer is provided.

@@ -1,1 +1,1 @@
-"""Saved-result reporting for the supported studies."""
+"""R5 review packaging and retained DMS material-profile metadata."""

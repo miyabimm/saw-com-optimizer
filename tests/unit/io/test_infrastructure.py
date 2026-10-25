@@ -3,28 +3,12 @@ import os
 import unittest
 from pathlib import Path
 
-from sawopt.io.config import deep_update, load_experiment_config
 from sawopt.io.serialization import save
 from sawopt.optimization import runner
 from sawopt.runtime.parallel import single_blas_thread_environment
 
 
 ROOT = Path(__file__).resolve().parents[3]
-
-
-class ConfigurationInfrastructure(unittest.TestCase):
-    def test_current_study_config_resolves_its_base_and_declares_role(self):
-        cfg = load_experiment_config(ROOT / "configs" / "studies" / "dms_topology_screening.yaml")
-        self.assertEqual(cfg["study"]["type"], "dms_topology_screening")
-        self.assertIn("dms_topology", cfg)
-        self.assertEqual(cfg["dms_topology"]["checkpoints"], [2000, 4000, 6000, 8000])
-
-
-    def test_deep_update_preserves_recursive_merge_and_replacement(self):
-        target = {"nested": {"keep": 1, "replace": {"old": True}}, "scalar": 1}
-        result = deep_update(target, {"nested": {"replace": 2}, "scalar": {"new": True}})
-        self.assertIs(result, target)
-        self.assertEqual(target, {"nested": {"keep": 1, "replace": 2}, "scalar": {"new": True}})
 
 
 class RunInfrastructure(unittest.TestCase):

@@ -108,31 +108,3 @@ class ArchitectureBoundaries(unittest.TestCase):
         self.assertTrue(absolute)
         self.assertIn('sawopt.studies.other._private_helper', relative[0])
         self.assertIn('sawopt.studies.other._private_helper', absolute[0])
-
-    def test_live_study_adapters_are_role_named(self):
-        modules = {path.stem for path in (SRC / 'studies').glob('*.py')}
-        self.assertIn('dms_topology_screening', modules)
-        self.assertIn('hybrid', modules)
-        self.assertFalse(any(name.startswith(('stage', 'phase_c')) for name in modules))
-
-    def test_study_audits_do_not_import_execution_layers(self):
-        audits = SRC / 'studies' / 'audits'
-        forbidden = ('sawopt.optimization', 'sawopt.optimizers', 'sawopt.orchestration')
-        violations = []
-        audit_sources = list(audits.glob('*.py'))
-        self.assertTrue(audit_sources)
-        for path in audit_sources:
-            relative = path.relative_to(SRC).with_suffix('')
-            module = '.'.join(('sawopt',) + relative.parts)
-            package = '.'.join(module.split('.')[:-1])
-            tree = ast.parse(path.read_text(encoding='utf-8'))
-            for node in ast.walk(tree):
-                if not isinstance(node, (ast.Import, ast.ImportFrom)):
-                    continue
-                for imported, _name in _absolute_import(package, node):
-                    if any(
-                        imported == layer or imported.startswith(layer + '.')
-                        for layer in forbidden
-                    ):
-                        violations.append(f'{module} imports execution layer {imported}')
-        self.assertEqual([], violations)
