@@ -177,18 +177,29 @@ def _read_config(path: str | Path) -> bytes:
         raise CliConfigError("configuration could not be read") from exc
 
 
+def _parse_safe_yaml(content: bytes) -> Any:
+    """Preserve the original synthetic SafeLoader input surface."""
+    try:
+        return yaml.safe_load(content.decode("utf-8"))
+    except (UnicodeError, yaml.YAMLError, ValueError, RecursionError) as exc:
+        raise CliConfigError(f"invalid YAML: {exc}") from exc
+
+
 def load_synthetic_config(path: str | Path) -> dict[str, Any]:
-    """Read the synthetic format only; scientific configs cannot fall back here."""
-    return validate_synthetic_config(parse_strict_yaml(_read_config(path)))
+    """Read the synthetic format only, retaining its original safe YAML behavior."""
+    return validate_synthetic_config(_parse_safe_yaml(_read_config(path)))
 
 
 def load_cli_config(path: str | Path) -> dict[str, Any]:
     """Dispatch solely on the explicit scientific discriminator, never shape."""
     content = _read_config(path)
-    raw = parse_strict_yaml(content)
+    raw = _parse_safe_yaml(content)
     if isinstance(raw, dict) and "schema_id" in raw:
         from .scientific_config import resolve_scientific_config
-        return resolve_scientific_config(raw, config_path=Path(path), config_bytes=content)
+        # Never validate scientific declarations using the permissive dispatch
+        # parse: reparse the SAME bytes, catching duplicates/aliases/merges.
+        strict = parse_strict_yaml(content)
+        return resolve_scientific_config(strict, config_path=Path(path), config_bytes=content)
     return validate_synthetic_config(raw)
 
 

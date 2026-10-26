@@ -64,9 +64,14 @@ active bounds must lie inside hard bounds. Units and order are:
 Integer active endpoints must also be integral. `integer_indices` is exactly
 `[1, 2, 3]` (zero-based integers). The existing decoder rounds these with
 `floor(x+0.5)` and does not clip. Bounds here are declarations, not modifications
-to any historical bounds. `fixed` has `metallization_ratio` (real, strictly
-between 0 and 1) and `thickness_over_lambda` (positive dimensionless real), so
-the `FilterDesign` defaults are never implicit. `geometry` has positive real
+to any historical bounds. `fixed` requires `metallization_ratio: 0.5` and
+`thickness_over_lambda: 0.04` (real, dimensionless), exactly the current
+`FilterDesign` decoder defaults. Non-default values are **unsupported** and
+rejected, not accepted then silently ignored by the named seven-variable
+`decode(x)`. This narrow v1 adds no completed-design adapter and changes neither
+decoder nor canonical candidate identity. Any future support for non-default
+fixed values needs a separately specified and qualified pure adapter; no
+scientific execution is implemented here. `geometry` has positive real
 `max_length_um`, `max_width_um`, `min_electrode_width_um`,
 `min_electrode_gap_um`, and positive integer `max_electrodes`. These are the
 legacy scalar geometry model's modeled limits, not a die-area model. Hybrid,
@@ -117,6 +122,13 @@ checking, not a hostile concurrent-writer sandbox or filesystem attestation.
 YAML duplicate/non-string keys, merge keys, anchors/aliases, custom tags and
 multiple documents fail (also in referenced payloads). A plain legacy config
 is not reinterpreted. The source config itself may be located outside the repo.
+These strict YAML restrictions apply to scientific declarations and their
+payloads only. Synthetic YAML retains its pre-existing `yaml.safe_load`
+behavior (including anchors/aliases/merge keys); its exact synthetic schema
+and output contract remain unchanged. Dispatch first safe-loads the bytes to
+identify a root `schema_id`, then **reparses the same bytes strictly** whenever
+that key is present (including unsupported/mixed discriminators). There is no
+fallback after strict scientific parsing fails.
 
 ### Optimizer
 
@@ -153,7 +165,9 @@ owns hard-coded backend behavior (including memory initialization/repair).
 Controlled DE, Q0 sampler/identity/RNG/checkpoint packages, resume, adaptive grid
 exchange, external watchdog policies and version aliases are unsupported.
 Version/source IDs are caller declarations, not Git existence/clean-tree or
-algorithm qualification attestations. Validation performs no Git subprocess.
+algorithm qualification attestations. In particular, `optimizer.version` is
+an implementation source Git identity, **not** Q0's semantic `existing-v1`
+algorithm-package identity. Validation performs no Git subprocess.
 
 ### Resources, storage, review
 
@@ -176,9 +190,17 @@ review storage, or import R5. Future authorized runs belong exclusively under
 under `reports/experiments/<experiment_id>/<run_id>/`.
 
 `review_context` has text `purpose`, `conditions`, `limitations`,
-`review_instructions`, `scientific_disposition: CLAIM_PENDING_REVIEW`, and
-booleans `requires_comparison: false`, `requires_validation: true`. No pre-run
-findings are fabricated; this is not an R5 manifest/review schema change.
+`review_instructions`, `scientific_disposition: CLAIM_PENDING_REVIEW`,
+`findings` with the exact required string
+`NOT_EVALUATED: no experimental findings; declaration only.`, and booleans
+`requires_comparison: false`, `requires_validation: true`. The config author
+supplies this nonempty **pre-run status declaration**, not fabricated
+experimental findings. Missing/empty/alternative findings fail. These eight
+fields pass the existing R5 review-context validator without transformation;
+no R5 format/validator changes or config→R5 adapter are introduced. A structural
+test checks that boundary without creating a run. Compatibility of this mapping
+is not full R5/evaluator integration or review readiness: an authorized future
+runner/result-reporting lifecycle is still unimplemented and separately gated.
 
 ## Snapshot and identities (exact bytes)
 
@@ -196,9 +218,17 @@ No absolute local paths or host-derived defaults enter the snapshot. Arrays
 (including variables/bands/points/rosters) retain source order, never sorted.
 
 Canonical bytes are Python 3.12 `json.dumps(value, sort_keys=True,
-ensure_ascii=True, allow_nan=False, separators=(',', ':')).encode('utf-8')`,
-with no BOM/newline. Standard Python finite float rendering is used, including
-`-0.0` versus `0.0`. SHA-256 of these bytes is `effective_config_sha256`.
+ensure_ascii=False, allow_nan=False, separators=(',', ':')).encode('utf-8')`,
+with no BOM/newline and no Unicode normalization. Standard Python finite float
+rendering is used, including `-0.0` versus `0.0`. These bytes match the existing
+R5 `io.experiment_store._canonical_json` exactly, including Unicode strings.
+SHA-256 of these bytes is `effective_config_sha256`; if that identical effective
+mapping is handed unchanged to R5, it is also R5's `scientific_config_sha256`.
+Any future adapter changing the mapping must not claim that equality without
+recomputing/documenting the changed identity. No R5 canonicalization or
+historical hashes change. The prior unaccepted PR draft's ASCII-escaped
+canonicalization is superseded before v1 acceptance, not a supported second
+identity namespace.
 `input_sha256` contains exactly `model`, `search_grid`, `validation_grid`, each
 SHA-256 of its effective payload's canonical bytes (model means the parameter
 payload, not metadata). These are content IDs, not Q0 codecs, Q0 grid-byte
@@ -235,3 +265,5 @@ research input. Test-only fixtures belong under `tests/fixtures/`. Future
 separately authorized canonical Stage 5A inputs belong at
 `configs/experiments/stage5a/<experiment_id>.yaml`; this issue adds none.
 Review does not advance Stage 4C/Q0/Q1 gates or authorize configured execution.
+This initial single-filter subset **does not accept Stage 5A hybrid P_D/D_P Q0
+inputs** and establishes no Stage 5A execution readiness.

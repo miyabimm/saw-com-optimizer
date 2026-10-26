@@ -108,6 +108,7 @@ storage:
 review_context:
   purpose: Validation-only software example
   conditions: Hypothetical model and sparse grids; nothing is evaluated.
+  findings: 'NOT_EVALUATED: no experimental findings; declaration only.'
   limitations: No calibration, grid sufficiency, feasibility, convergence or parity claim.
   review_instructions: Review strict declarations and identities, not scientific results.
   scientific_disposition: CLAIM_PENDING_REVIEW

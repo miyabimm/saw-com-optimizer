@@ -26,7 +26,7 @@ VARIABLES = (
 
 
 def canonical_bytes(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, ensure_ascii=True, allow_nan=False,
+    return json.dumps(value, sort_keys=True, ensure_ascii=False, allow_nan=False,
                       separators=(",", ":")).encode("utf-8")
 
 
@@ -137,8 +137,10 @@ def _design(d: Any) -> None:
             raise CliConfigError(f"{name}.bounds must be inside hard_bounds")
     f = _object(d["fixed"], "metallization_ratio thickness_over_lambda", "design.fixed")
     _real_fields(f, "metallization_ratio thickness_over_lambda", "design.fixed", positive=True)
-    if f["metallization_ratio"] >= 1:
-        raise CliConfigError("metallization_ratio must be <1")
+    # The named seven-variable decoder supplies these exact dataclass defaults.
+    # Until a completed-design adapter is qualified, reject ignored declarations.
+    _expect(f["metallization_ratio"], 0.5, "design.fixed.metallization_ratio")
+    _expect(f["thickness_over_lambda"], 0.04, "design.fixed.thickness_over_lambda")
     g = _object(d["geometry"], "max_length_um max_width_um min_electrode_width_um min_electrode_gap_um max_electrodes", "design.geometry")
     _real_fields(g, "max_length_um max_width_um min_electrode_width_um min_electrode_gap_um", "design.geometry", positive=True)
     _integer(g["max_electrodes"], "geometry.max_electrodes", 1)
@@ -245,9 +247,10 @@ def _storage(s: Any, optimizer: dict) -> None:
 
 
 def _review(r: Any) -> None:
-    _object(r, "purpose conditions limitations review_instructions scientific_disposition requires_comparison requires_validation", "review_context")
+    _object(r, "purpose conditions findings limitations review_instructions scientific_disposition requires_comparison requires_validation", "review_context")
     for key in ("purpose", "conditions", "limitations", "review_instructions"):
         _text(r[key], f"review_context.{key}")
+    _expect(r["findings"], "NOT_EVALUATED: no experimental findings; declaration only.", "review_context.findings")
     _expect(r["scientific_disposition"], "CLAIM_PENDING_REVIEW", "scientific_disposition")
     _expect(r["requires_comparison"], False, "requires_comparison")
     _expect(r["requires_validation"], True, "requires_validation")

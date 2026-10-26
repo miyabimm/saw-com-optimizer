@@ -1,6 +1,109 @@
-# Issue #157 — import blocker repaired / independent review pending
+# Issue #157 — F1–F4 repaired / independent re-review pending
 
-## Baseline, authorization and disposition
+## Current revision: PR #158 independent-review corrections
+
+The independent review of HEAD `8a8200f5bbdbfbb9cf97566feed6c9e5461c5992`
+required F1–F4 changes; the owner instructed correction on this same Draft PR.
+The following results supersede the earlier import-repair handoff **for the
+current revision**. The earlier evidence below is retained as historical
+context, not as the current example identity or current test count. Exact
+revised HEAD and new-head CI are reported in the PR after push.
+
+### Corrections and bounded decisions
+
+- **F1 — R5 context:** require the eighth field `findings` with the exact
+  config-author-supplied status `NOT_EVALUATED: no experimental findings;
+  declaration only.` No experimental findings are fabricated. The effective
+  context passes existing `REVIEW_CONTEXT_FIELDS` / `_validate_review_context`
+  unchanged; a structural test checks this without creating a scientific run.
+  There is no future adapter implemented or implicitly required to fill a
+  missing field. Full configured evaluator/R5 integration and result-reporting
+  lifecycle are still unimplemented and separately gated.
+- **F2 — identity:** match R5's UTF-8 `ensure_ascii=False` canonical JSON bytes,
+  with unchanged key sorting, array order, finite binary64 rendering and signed
+  zero. Tests compare exact bytes and digests with R5 for ASCII, Japanese,
+  combining characters/emoji, finite binary64 cases, signed zero and reordered
+  mappings; Unicode effective snapshots are also checked across a fresh CLI
+  process. The validator's `effective_config_sha256` equals R5's
+  `scientific_config_sha256` **only for the identical effective mapping**.
+  R5's implementation/history is untouched; this corrects the unaccepted v1
+  proposal rather than adding a second identity namespace.
+- **F3 — fixed design:** narrow accepted `design.fixed` to the named decoder's
+  exact defaults (0.5 metallization ratio, 0.04 thickness/wavelength). Nondefault
+  values fail closed. Pure decode/canonical-vector tests cross-check the
+  declarations against the unchanged decoder. No design/physics adapter or
+  source-decoder change was introduced. Future nondefault support requires
+  separately specified/qualified mapping; this does not enable execution.
+- **F4 — YAML:** restore original `yaml.safe_load` behavior for synthetic files.
+  Dispatch safe-loads once to identify a root `schema_id`, then reparses the
+  **same bytes** with the strict scientific loader if that key is present.
+  There is no scientific parse-failure fallback. New tests prove synthetic
+  scalar aliases work through both loaders and CLI validate/run/review, while
+  scientific scalar/grid aliases, merges, duplicate fields/discriminators and
+  mixed-schema alias requests fail. No historical study adapter was added.
+
+Specs were updated before new tests/implementation in
+`docs/scientific_config_v1.md`. `docs/roadmap.md` now explicitly states that
+this seven-variable single-filter subset does not accept hybrid P_D/D_P Q0
+inputs, establish Stage 5A readiness, or treat source-Git optimizer version as
+Q0's semantic algorithm identity. No broader scientific-policy decision was
+needed: these choices follow the review's explicit bounded repair alternatives.
+
+### Current local checks
+
+- Focused RED: `uv run --locked pytest -q tests/integration/test_scientific_config_contracts.py`
+  — **9 failed / 12 passed**, reproducing all four findings before implementation.
+- Initial GREEN (before adding synthetic alias run/review case):
+  `uv run --locked pytest -q tests/integration/test_scientific_config_contracts.py tests/integration/test_scientific_config.py tests/unit/io/test_public_imports.py`
+  — **107 passed**.
+- Final focused command: the seven suites listed in the earlier GREEN command
+  below **plus** `tests/integration/test_scientific_config_contracts.py`:
+  **224 passed**, 68.15 s. The new file has 22 cases.
+- `OPENBLAS_CORETYPE=Haswell uv run --locked pytest` — **470 passed**, 120.17 s,
+  no failures/skips. This BLAS setting is CI's test-only dispatch precondition.
+- `uv run --locked --extra test --extra benchmark python tools/diagnostics/evaluation_repro.py`
+  — **exit 0** (stdout parsed by a piped `uv run --locked python -c` JSON
+  summarizer under `set -o pipefail`). All expected hash checks matched in four
+  subprocess variants, repeat rank inputs matched, and all three cross-process/
+  BLAS comparison groups reported zero changed array cells locally.
+- Both Q1-A import guard scripts and both CLI help commands listed below pass.
+- `git diff --exit-code 8a8200f -- src/sawopt/io/__init__.py tests/integration/test_scientific_config.py`
+  — PASS: lazy public API implementation and **the entire original scientific
+  config test file, including both fresh-process guards, remain unchanged**.
+- `git diff --check` — PASS.
+
+No actual scientific R5 run was created by structural tests. The alias run is
+only the existing tiny synthetic fixture, under test-owned temporary external
+storage/review roots. Fixed-input COM / deterministic optimizer calculations
+remain ordinary software regression, not research or qualification evidence.
+
+### Current observed CLI output
+
+The real scientific `validate` CLI succeeds with `schema_valid: true`,
+`qualification: NOT_EVALUATED`, `run_authorized: false`,
+`scientific_run_implemented: false`. The example now explicitly includes
+pre-run findings, so its config/effective identities change:
+
+| field | current SHA-256 |
+|---|---|
+| config_file_sha256 | `7039ec1cc577b37cd40dcb44744bec8af39fe249fc7e7b97f049efda46f30f7c` |
+| effective_config_sha256 | `d0a5146dcdada34dd912577dbf9eabf30cd849cd7e8ca08115ae4d3c501e5236` |
+
+The three input payloads/hashes remain unchanged from the earlier evidence.
+The synthetic example's validate JSON remains byte-for-byte unchanged. The
+real scientific `run` still returns exit 2 with
+`error.code: SCIENTIFIC_RUN_NOT_IMPLEMENTED`. CLI commands are the same as
+below; scientific validate stdout was piped through a JSON display-only
+summarizer omitting `effective_config` (no file writes).
+
+No known local failures remain. Keep Draft/unmerged: independent re-review of
+F1–F4, scientific declaration semantics and complete diff is still required.
+Scientific run remains unavailable; no research study, Q0/Q1 qualification,
+historical replay/migration or scientific authorization change was performed.
+
+## Earlier import-repair handoff (historical, superseded above)
+
+### Baseline, authorization and disposition
 
 - Baseline: `a215c2a0a96c9ce2670e38e1901d49ea0b9c9cab` (PR #156).
 - Branch: `issue157-scientific-config`; [Draft PR #158](https://github.com/miyabimm/saw-com-optimizer/pull/158).
