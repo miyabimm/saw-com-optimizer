@@ -1,4 +1,32 @@
-# Issue #157 — F1–F4 repaired / independent re-review pending
+# Issue #157 — F1–F4 repaired / STOPPED on CI failure
+
+## Current CI blocker (after F1–F4 implementation push)
+
+Implementation HEAD `64da58ee7c07bceacc932438d9a85f88fedf8719`:
+[CI #40344621589](https://github.com/miyabimm/saw-com-optimizer/actions/runs/40344621589)
+**FAILURE**. Fixed-input COM diagnostic PASS; pytest **469 passed / 1 failed**
+in 56.26 s. The new 22 F1–F4 cases, original scientific-config fresh-process
+guards, lazy public-API, synthetic CLI, R5 and Q1-A suites passed in this run.
+
+Exact failing test:
+`tests/integration/test_synthetic_task_worker.py::test_pid_reuse_or_boot_mismatch_fails_closed_and_stop_never_signals_foreign_pid[owner_boot_id]`
+at line 285. `ledger.get_status(run_id).state` returned `RECOVERY_REQUIRED`;
+the assertion expected `PROCESS_IDENTITY_UNKNOWN`. That test and the task-ledger
+implementation were not changed by this revision. Local full pytest passed
+470/470, but that does not override the observed CI failure. Cause and
+reproducibility are **unclassified**; do not call it a confirmed flake or a
+proven unrelated regression.
+
+Per Issue #157's failure stop instruction, no task-ledger/test changes, timeout
+relaxation, deliberate CI rerun or broader repair were attempted. This follow-up
+is documentation/evidence only; its final HEAD is reported in the PR. Any
+normal CI triggered by the documentation push is separate automatic evidence,
+not a substitute for investigating/classifying the failed run. Keep Draft and
+unmerged; owner/reviewer direction is needed before broadening this work to
+investigate or repair the synthetic-task failure.
+
+The F1–F4 repairs below remain available for independent review. No scientific
+execution or policy change is involved in this stop.
 
 ## Current revision: PR #158 independent-review corrections
 
