@@ -252,6 +252,86 @@ CLI JSON error envelope (no status implying scientific acceptance). A valid
 scientific `run` returns exit 2 and `error.code: SCIENTIFIC_RUN_NOT_IMPLEMENTED`;
 malformed declarations fail validation before reaching that error.
 
+## Library-side configured candidate evaluation (Issue #159)
+
+`src/sawopt.problem.evaluator.ConfiguredCandidateEvaluator` is a library-only
+adapter from one successful resolver result to the existing single-filter
+`design.space.canonical_design` / `evaluation.evaluate_design` path. It accepts
+one in-memory resolved snapshot; it never opens the source config or referenced
+payloads. Construction verifies the exact successful v1 envelope, schema ID,
+status/qualification/run flags, effective-config SHA-256, and exactly the three
+`model`, `search_grid`, and `validation_grid` input SHA-256 values against the
+v1 canonical JSON bytes. It revalidates a detached effective declaration with
+inline inputs and rejects non-normalized, modified, unknown, or unsupported
+fields before the first COM provider is constructed. Declared source and
+environment IDs remain caller declarations, not runtime attestations.
+
+The evaluator owns a frozen `ConfiguredEvaluationContext` snapshot containing
+only evaluation-consumed fields: model parameters; topology/decoder and the
+ordered seven variable names/units, active and hard bounds, and fixed defaults;
+center/wiring; geometry limits; complete metric specification and feasibility
+tolerance; independent positive-real source/load references; exact search and
+validation Hz point tuples; and their supplied content identities. Caller
+mutation after construction cannot change the context. Per-call mutable
+arguments passed to the existing evaluator are detached copies. Optimizer,
+resource, storage, review, and provenance declarations remain in the effective
+identity but are not reinterpreted as evaluator behavior.
+
+Call `evaluator(physical_vector, phase="SEARCH" | "VALIDATION")` with exactly
+seven finite physical coordinates. The adapter rejects booleans, malformed or
+nonfinite vectors, and values outside either declared active or hard bounds;
+it does not clip, repair, normalize, or charge evaluation counters. It decodes
+and canonicalizes only through the existing seven-variable design-space API,
+then supplies the existing `evaluation.evaluate_design` with an explicit
+mapping of COM parameters, specification fields, geometry constraints, center,
+wiring, ports, and the exact role-specific Hz grid. No default grid helper,
+sort, de-duplication, adaptive refinement, dense fallback, optimizer, R5 store,
+or CLI run path is involved. The returned mapping distinguishes the physical
+`proposal_vector`, decoded `design`, and `canonical_vector`/`canonical_key`,
+marks `evaluation_phase`, preserves existing metrics, individual violations,
+feasibility, scalar surrogate, diagnostics, and adds the authoritative existing
+`FeasibilityFirstComparator.rank_key`. The effective-config, model-input, and
+role-specific grid identities are returned with the phase; validation points
+do not alter search-FE accounting. Bounded
+software parity tests use the same fixed vectors, model, ports, and declared
+short grids for both adapter and direct `evaluation.evaluate_design` calls.
+They require exact equality (zero tolerance) for candidate/key identity,
+response arrays (`Y`, `S`, gain, IL, VSWR), every metric and named violation,
+feasibility, scalar objective, diagnostics, and comparator rank; no numerical
+deviation or relaxed tolerance is accepted.
+
+An optional injected `evaluate_design_fn` is a software orchestration seam with
+the same call/return contract as `evaluation.evaluate_design`; the default is
+the existing evaluator and fixed COM provider. Exceptions fail closed as a
+typed `CandidateEvaluationError` carrying phase and original cause; they are
+never converted into a feasible record or retried. Before ranking, the adapter
+checks any supplied `sum_violation` against the exact ordered Python sum of the
+named nonnegative violations, and checks `objective`,
+`search_scalar_objective`, and `objective_parts` against the existing
+`evaluation.feasibility_objective` result. These comparisons are exact: they
+reuse the same ordered values and objective function, introduce no tolerance,
+and reject contradictions rather than repairing injected records. This protects
+both the existing comparator's optional sum tie-breaker and scalar-surrogate
+reporting without defining new ranking or objective semantics. This adapter is
+not a runnable scientific CLI optimizer, a provider plugin interface, an R5
+lifecycle, or numerical parity/physical qualification. Search/validation
+numerical parity and integrated scientific execution remain separately gated.
+
+Issue #159 software verification is limited to the hypothetical
+[`scientific_validation_only.yaml`](../configs/examples/scientific_validation_only.yaml)
+fixture (effective-config SHA-256
+`d0a5146dcdada34dd912577dbf9eabf30cd849cd7e8ca08115ae4d3c501e5236`; model,
+search-grid, and validation-grid SHA-256 values respectively
+`691536cdb91bf38cf2140ab6241ac704a8f93abeb47de60e5d8e067ff8c42692`,
+`a0b906309b671b8c403c6de47a9a2afcd5cda58c6f581a3fd5826dfab6bc9fa6`, and
+`3aae08f44a030aa5f583d7bc19f0a6999d56914c73e48e72cd91a52c2c741778`). The
+small fixed physical vectors and four-/five-point declared grids are test-owned;
+there is no optimizer initialization/search, R5 registration, external data
+root, research-scale run, or experiment output. This adapter does not resolve
+Stage 5A's supported topology-selection gap or add hybrid `P_D`/`D_P` support;
+Q0 identity/algorithm semantics, Q1 qualification status, and all Stage 5A-2
+experiment gates remain unchanged.
+
 ## Ownership and examples
 
 `io.cli_config` owns strict YAML dispatch and preserves synthetic APIs.
