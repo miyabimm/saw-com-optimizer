@@ -1,6 +1,62 @@
-# Issue #157 — F1–F4 repaired / STOPPED on CI failure
+# Issue #157 — synthetic-task CI race diagnosed and test synchronized
 
-## Current CI blocker (after F1–F4 implementation push)
+## Current status — bounded repair complete; exact-head CI pending
+
+The owner authorized a bounded, software-only investigation of the synthetic-task
+identity-mismatch test failure on PR #158. The test-only repair is committed at
+**`a5ecf0eda5b8b38cb65e5c964bba5df282cb6e7a`**. It changes only
+`tests/integration/test_synthetic_task_worker.py`; no worker/ledger production
+semantics, schema contracts, CI policy, COM physics, optimizer behavior or
+research conditions changed.
+
+### Diagnosis and deterministic fixture repair
+
+The failing fixture changed the recorded worker identity while its live worker
+continued polling at 100 ms intervals. A bounded local reproduction of the
+`owner_boot_id` case observed the exact test-owned PID, boot ID and start ticks
+in `/proc`, state `S`, and the expected worker argv both immediately before the
+SQLite mutation and immediately before `get_status`; the test-owned log showed
+spawn intent, claim, and progress `1/40`, with no worker-error entry at that
+point. One such run returned `RECOVERY_REQUIRED` (reproducing the reported
+assertion failure); another returned `PROCESS_IDENTITY_UNKNOWN` while the worker
+remained live. This confirms the scheduling window: the worker can observe the
+forged identity and exit between the parent’s last process check and its status
+inspection. `RECOVERY_REQUIRED` is the existing dead-worker result, not a
+relaxable alternative for the live identity-mismatch assertion. The exact
+`/proc` state at the internal lookup in the failing local run was not captured,
+so this record does not claim whether it was a zombie or already reaped.
+
+The fixture now verifies the worker's exact PID, boot ID, start ticks and
+expected argv, sends `SIGSTOP` only to that verified test-owned child, and
+confirms the same identity remains live in stopped state before SQLite
+mutation. It then retains the strict `PROCESS_IDENTITY_UNKNOWN` and stop
+refusal assertions, verifies the stop API made zero intercepted `os.kill`
+calls (no signal reached a foreign process) and the parent identity did not
+change, and checks that the worker is still stopped
+and exact-identity-owned afterward. A `try/finally` cleanup re-verifies the
+worker identity/argv before `SIGKILL` and waits for exit/zombie state. The
+separate dead-worker test still expects `RECOVERY_REQUIRED`. No production task
+ledger or worker behavior was changed.
+
+### Validation on implementation commit
+
+- Bounded identity-mismatch variants plus the separate dead-worker case:
+  **4 passed**.
+- Relevant synthetic-task, scientific-config, R5 storage/review, public-import,
+  synthetic CLI and Q1-A suites (combined focused command): **254 passed**.
+- Official local full pytest, with CI's test-only BLAS dispatch:
+  `OPENBLAS_CORETYPE=Haswell uv run --locked pytest` — **470 passed**.
+- Fixed-input COM diagnostic:
+  `uv run --locked --extra test --extra benchmark python tools/diagnostics/evaluation_repro.py`
+  — **exit 0**. On the implementation commit, all four expected-hash groups
+  matched and all four rank-input comparisons matched. This was ordinary fixed
+  input software regression, not a research or optimizer qualification run.
+- These are local checks. The exact-head GitHub CI for the pushed revision is
+  pending; keep PR #158 Draft and unmerged until it completes and receives
+  independent review. No scientific run, Q1 qualification, replay or data
+  mutation was performed.
+
+## Prior exact-head CI blocker (historical evidence; now addressed below)
 
 Implementation HEAD `64da58ee7c07bceacc932438d9a85f88fedf8719`:
 [CI #40344621589](https://github.com/miyabimm/saw-com-optimizer/actions/runs/40344621589)
@@ -11,22 +67,19 @@ guards, lazy public-API, synthetic CLI, R5 and Q1-A suites passed in this run.
 Exact failing test:
 `tests/integration/test_synthetic_task_worker.py::test_pid_reuse_or_boot_mismatch_fails_closed_and_stop_never_signals_foreign_pid[owner_boot_id]`
 at line 285. `ledger.get_status(run_id).state` returned `RECOVERY_REQUIRED`;
-the assertion expected `PROCESS_IDENTITY_UNKNOWN`. That test and the task-ledger
-implementation were not changed by this revision. Local full pytest passed
-470/470, but that does not override the observed CI failure. Cause and
-reproducibility are **unclassified**; do not call it a confirmed flake or a
-proven unrelated regression.
+the assertion expected `PROCESS_IDENTITY_UNKNOWN`. That test and the task-ledger implementation were not changed by this revision. Local full
+pytest passed 470/470, but that did not override the observed CI failure. Cause
+and reproducibility were **unclassified at the time of this
+record**; the later bounded diagnosis and deterministic test-only repair are
+documented at the top of this handoff. The failed CI remains historical
+failure evidence and is not erased by subsequent local checks.
 
-Per Issue #157's failure stop instruction, no task-ledger/test changes, timeout
-relaxation, deliberate CI rerun or broader repair were attempted. This follow-up
-is documentation/evidence only; its final HEAD is reported in the PR. Any
-normal CI triggered by the documentation push is separate automatic evidence,
-not a substitute for investigating/classifying the failed run. Keep Draft and
-unmerged; owner/reviewer direction is needed before broadening this work to
-investigate or repair the synthetic-task failure.
-
-The F1–F4 repairs below remain available for independent review. No scientific
-execution or policy change is involved in this stop.
+At that time, the failure-stop instruction prevented changes or diagnosis.
+Subsequent owner authorization permitted only the bounded software test
+investigation recorded above. This historical stopped state is superseded; PR
+#158 remains Draft and unmerged pending exact-head CI and independent review.
+The F1–F4 repairs below remain separate from this synthetic-task test repair.
+No scientific execution or policy change is involved.
 
 ## Current revision: PR #158 independent-review corrections
 
