@@ -304,10 +304,18 @@ An optional injected `evaluate_design_fn` is a software orchestration seam with
 the same call/return contract as `evaluation.evaluate_design`; the default is
 the existing evaluator and fixed COM provider. Exceptions fail closed as a
 typed `CandidateEvaluationError` carrying phase and original cause; they are
-never converted into a feasible record or retried. This adapter is not a
-runnable scientific CLI optimizer, a provider plugin interface, an R5 lifecycle,
-or numerical parity/physical qualification. Search/validation numerical parity
-and integrated scientific execution remain separately gated.
+never converted into a feasible record or retried. Before ranking, the adapter
+checks any supplied `sum_violation` against the exact ordered Python sum of the
+named nonnegative violations, and checks `objective`,
+`search_scalar_objective`, and `objective_parts` against the existing
+`evaluation.feasibility_objective` result. These comparisons are exact: they
+reuse the same ordered values and objective function, introduce no tolerance,
+and reject contradictions rather than repairing injected records. This protects
+both the existing comparator's optional sum tie-breaker and scalar-surrogate
+reporting without defining new ranking or objective semantics. This adapter is
+not a runnable scientific CLI optimizer, a provider plugin interface, an R5
+lifecycle, or numerical parity/physical qualification. Search/validation
+numerical parity and integrated scientific execution remain separately gated.
 
 Issue #159 software verification is limited to the hypothetical
 [`scientific_validation_only.yaml`](../configs/examples/scientific_validation_only.yaml)

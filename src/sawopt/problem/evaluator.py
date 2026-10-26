@@ -13,7 +13,7 @@ from typing import Any, Callable, Mapping
 import numpy as np
 
 from ..design.space import canonical_design
-from ..evaluation import evaluate_design, evaluate_response, measure, validation_grid
+from ..evaluation import evaluate_design, evaluate_response, feasibility_objective, measure, validation_grid
 from ..optimization.selection import FeasibilityFirstComparator
 from ..physics.com import SimulationResult
 from ..optimization.adaptive_frequency import critical_frequencies, new_frequency_points
@@ -280,6 +280,21 @@ def _validate_measure_record(record: Mapping[str, Any], context: ConfiguredEvalu
         raise ValueError("evaluation scalar surrogate fields disagree")
     if not isinstance(record["objective_parts"], Mapping) or not isinstance(record["diagnostics"], Mapping):
         raise TypeError("evaluation objective_parts and diagnostics must be mappings")
+    expected_objective, expected_parts = feasibility_objective(metrics, violations)
+    if (record["objective"] != expected_objective
+            or record["search_scalar_objective"] != expected_objective):
+        raise ValueError("evaluation scalar surrogate disagrees with feasibility_objective")
+    if dict(record["objective_parts"]) != expected_parts:
+        raise ValueError("evaluation objective_parts disagree with feasibility_objective")
+    if "sum_violation" in record:
+        sum_violation = record["sum_violation"]
+        if (isinstance(sum_violation, (bool, np.bool_))
+                or not isinstance(sum_violation, Real)
+                or not np.isfinite(float(sum_violation)) or sum_violation < 0):
+            raise ValueError("evaluation sum_violation must be finite and nonnegative")
+        expected_sum = sum(float(value) for value in violations.values())
+        if float(sum_violation) != expected_sum:
+            raise ValueError("evaluation sum_violation disagrees with the ordered named violations")
     required_metrics = {
         "worst_il_db", "ripple_db", "input_vswr", "output_vswr",
         "source_return_loss_db_min", "load_return_loss_db_min", "stop_attenuation_db",

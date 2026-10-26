@@ -323,6 +323,55 @@ def test_numerical_failure_is_typed_and_never_becomes_a_result():
     assert captured.value.__cause__ is failure
 
 
+@pytest.mark.parametrize("corruption", [
+    "negative_sum", "wrong_sum", "false_scalar_pair", "false_objective_parts",
+])
+def test_rank_and_surrogate_fields_must_match_the_existing_contract(corruption):
+    from sawopt.problem.evaluator import CandidateEvaluationError, ConfiguredCandidateEvaluator
+
+    def corrupt_record(design, cfg, frequencies, rs, rl, *, wiring):
+        record, network, simulation = evaluate_design(
+            design, cfg, frequencies, rs, rl, wiring=wiring,
+        )
+        if corruption == "negative_sum":
+            record["sum_violation"] = -1.0
+        elif corruption == "wrong_sum":
+            record["sum_violation"] = sum(record["violations"].values()) + 0.25
+        elif corruption == "false_scalar_pair":
+            record["objective"] = 123.0
+            record["search_scalar_objective"] = 123.0
+        elif corruption == "false_objective_parts":
+            record["objective_parts"]["primary"] += 1.0
+        return record, network, simulation
+
+    evaluator = ConfiguredCandidateEvaluator(
+        resolved_snapshot(), evaluate_design_fn=corrupt_record,
+    )
+    with pytest.raises(CandidateEvaluationError) as captured:
+        evaluator([5.0, 24, 16, 40, 0.5, 0.5, 80], phase="SEARCH")
+    assert captured.value.phase == "SEARCH"
+    assert isinstance(captured.value.__cause__, ValueError)
+
+
+def test_consistent_optional_sum_violation_preserves_existing_comparator_rank():
+    from sawopt.problem.evaluator import ConfiguredCandidateEvaluator
+
+    original_records = []
+
+    def with_sum(design, cfg, frequencies, rs, rl, *, wiring):
+        record, network, simulation = evaluate_design(
+            design, cfg, frequencies, rs, rl, wiring=wiring,
+        )
+        record["sum_violation"] = sum(float(value) for value in record["violations"].values())
+        original_records.append(copy.deepcopy(record))
+        return record, network, simulation
+
+    result = ConfiguredCandidateEvaluator(
+        resolved_snapshot(), evaluate_design_fn=with_sum,
+    )([5.0, 24, 16, 40, 0.5, 0.5, 80], phase="SEARCH")
+    assert result["rank_key"] == FeasibilityFirstComparator().rank_key(original_records[0])
+
+
 def test_malformed_evaluation_record_fails_closed_instead_of_defaulting_feasible():
     from sawopt.problem.evaluator import CandidateEvaluationError, ConfiguredCandidateEvaluator
 
