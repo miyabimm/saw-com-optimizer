@@ -1,82 +1,178 @@
-# Issue #157 — partial implementation / STOPPED
+# Issue #157 — import blocker repaired / independent review pending
 
-## Baseline and scope
+## Baseline, authorization and disposition
 
 - Baseline: `a215c2a0a96c9ce2670e38e1901d49ea0b9c9cab` (PR #156).
-- Branch: `issue157-scientific-config`.
-- This is unfinished software work, not accepted schema, external review,
-  scientific qualification or run authorization. No scientific run, Q0/Q1
-  qualification, new COM study or historical raw-data operation was performed.
-- No executable scientific research config was added. The new example is
-  explicitly validation-only and uses hypothetical parameters and sparse grids.
+- Branch: `issue157-scientific-config`; [Draft PR #158](https://github.com/miyabimm/saw-com-optimizer/pull/158).
+- Initial draft: `5c344f1a30c98ec296d885982392fde9f93b3f72`.
+- Import-repair code/test commit: `3f08fb7a9cb2d22331542aa2fd087c51b14f0a6b`.
+  The final handoff HEAD is reported in the PR; later documentation-only
+  commits do not change the tested code.
+- The [reviewer decision](https://github.com/miyabimm/saw-com-optimizer/pull/158#issuecomment-6418334945)
+  and owner's continuation instruction authorize only the narrow software import
+  repair and bounded regressions. They do not accept the scientific schema or
+  authorize configured scientific execution.
 
-## Implemented draft
+The prior stopped state is **superseded**: the import blocker is repaired and
+local checks pass. Independent full schema/code review is still required. Keep
+this PR Draft; do not merge or advance configured execution from this handoff.
+No new scientific/optimizer study, Q0 experiment, Q1 qualification, production,
+historical replay or raw-data migration was performed. Fixed-input COM and tiny
+deterministic optimizer calculations ran only as authorized software checks.
 
-- Normative field/unit/subset/identity proposal: `docs/scientific_config_v1.md`.
+## Draft implementation and minimal repair
+
+- Normative field/unit/subset/identity draft: `docs/scientific_config_v1.md`.
 - Strict safe YAML dispatch in `io.cli_config`, pure scientific validator and
   read-only hash-pinned input resolver in `io.scientific_config`.
-- CLI scientific validation result/snapshot and early rejected scientific run.
-- Focused schema, identity, path/reference and fresh-process side-effect tests.
-- Supported subset intentionally excludes hybrid/Q0, calibrated/literature
-  providers, complex ports, comparison rosters and scientific execution.
-  No scientific contract or existing numerical backend was changed.
+- CLI scientific validation snapshot/identities and rejected scientific run.
+- Validation-only hypothetical example, not an executable research config.
+- Supported subset excludes hybrid/Q0, calibrated/literature providers,
+  complex ports, comparison rosters and scientific execution.
 
-## Commands and actual results
+Originally `io/__init__.py` eagerly imported R5 storage before the CLI could
+reach validation. The repair changes only that initializer's import behavior:
+PEP 562 `__getattr__` checks the existing six-name `__all__` allowlist, uses
+absolute `import_module("sawopt.io.experiment_store")` to avoid recursive package
+attribute resolution, and returns the original implementation object. Unknown
+attributes raise `AttributeError` before importing R5. No object wrappers,
+duplicate implementations, plugins or storage-semantic changes were added.
+Public exports and `__all__` remain unchanged. No optional introspection API was
+needed. There is no dependency from `cli_config` to `experiment_store`.
 
-1. `uv run --locked pytest -q tests/integration/test_scientific_config.py::test_snapshot_and_normalization`
-   — focused RED: **1 failed**, missing `load_cli_config` API before implementation.
-2. `uv run --locked pytest -q tests/integration/test_scientific_config.py`
-   — after minimum implementation: **80 passed, 2 failed** in 3.02 s.
+`tests/unit/io/test_public_imports.py` verifies in four fresh processes:
+attribute access, explicit from-import, star import, and direct implementation
+import before public-symbol access; all six objects and both exception classes
+retain exact identity. Merely importing `io` or `io.cli_config`, or looking up an
+unknown attribute, does not import R5. Exception catch behavior is checked for
+both `RunValidationError` (ValueError) and `RunStorageError` (OSError).
 
-The 80 passing cases cover positive snapshot checks, canonical hash calculation,
-real int/float normalization, mapping order/repeat-process identity, signed-zero
-identity change, scientific-field identity changes, strict keys/YAML, invalid
-values/modes/units, legacy/cross-schema rejection, pinned reference success and
-bad hash/path/type/payload rejection. Repeat-process `python -B -m sawopt.cli
-validate` returned successfully and produced identical JSON, but that test does
-NOT establish import safety.
+Both original scientific fresh-process guards are unchanged **byte-for-byte**:
+`git diff --exit-code 5c344f1 -- tests/integration/test_scientific_config.py`
+passes. They reject physics/design/evaluation/problem/optimizer/studies/R5/
+reporting/checkpoint imports and filesystem writes, environment mutation and
+subprocess creation. They now pass for validate and rejected run with an invalid
+`SAWOPT_DATA_ROOT`, without source/data-root preflight or raw-store creation.
 
-## Exact blocker and stop decision
+## Local verification — exact commands/results
 
-Both failures are `test_fresh_process_no_science_no_writes[validate/run]`.
-The fresh-process audit hook raises before CLI dispatch:
+Tests ran on Ubuntu/WSL2, locked uv, Python 3.12.3. Full pytest uses CI's
+**test-only** `OPENBLAS_CORETYPE=Haswell`; production environment policy is
+unchanged. The full suite and diagnostic ran against the worktree changes
+subsequently committed as `3f08fb7`; the diagnostic's Git revision field still
+reported prior HEAD `5c344f1` at execution time, not a clean-tree attestation.
 
-```text
-src/sawopt/cli.py:22 → .io.cli_config
-src/sawopt/io/__init__.py:3 → .experiment_store
-AssertionError: forbidden import: sawopt.io.experiment_store
+### RED and test-authoring correction
+
+- Initial implementation RED (before resolver):
+  `uv run --locked pytest -q tests/integration/test_scientific_config.py::test_snapshot_and_normalization`
+  — **1 failed**, missing `load_cli_config`.
+- Initial implementation suite: `uv run --locked pytest -q tests/integration/test_scientific_config.py`
+  — **80 passed / 2 failed**, the eager-import blocker; implementation stopped.
+- Authorized repair RED: `uv run --locked pytest -q tests/unit/io/test_public_imports.py`
+  — **4 failed** at the expected eager-import assertion.
+- First repair focused run: **198 passed / 4 failed**. The four failures were an
+  incorrect assertion in the *new test* that `RunValidationError` subclasses
+  `RunStorageError`. Source inspection confirmed the existing independent
+  ValueError/OSError bases. Corrected the new test to assert those existing bases
+  and identity/catch behavior for both classes; no production exception/API or
+  original guard was changed. No deeper public-API regression was observed.
+
+### GREEN
+
+```bash
+uv run --locked pytest -q \
+  tests/unit/io/test_public_imports.py \
+  tests/integration/test_scientific_config.py \
+  tests/integration/test_synthetic_cli.py \
+  tests/unit/io/test_experiment_store.py \
+  tests/integration/test_review_export_cli.py \
+  tests/unit/studies/test_stage5a2_foundation.py \
+  tests/unit/physics/test_import_boundaries.py
 ```
 
-Python executes the existing `io/__init__.py` before loading `cli_config`.
-That initializer eagerly re-exports six R5 symbols. Splitting the resolver
-alone cannot meet Issue #157's explicit **no R5 import** requirement. No guard
-was weakened and no exception/alternate hidden import path was introduced.
-Per the issue's test-failure stop instruction, implementation stopped here.
+**202 passed**, 64.94 s. This includes 82 scientific-config cases, four new
+public-import cases, synthetic validate/run/review, R5 storage/export, Q1-A
+foundation and physics import-boundary regressions.
 
-Proposed next correction, pending direction: preserve the current six public
-`io` exports but make their import lazy, then rerun both fresh-process guards
-and relevant R5/synthetic/import-boundary regressions. This requires touching
-`src/sawopt/io/__init__.py`, beyond the parser/CLI files initially selected.
-No such change has been made in this partial handoff.
+```bash
+OPENBLAS_CORETYPE=Haswell uv run --locked pytest
+```
 
-## Evidence limits / remaining work
+**448 passed**, 127.64 s. No skipped or failing tests. This includes remaining
+architecture, synthetic-task, R5 review, checkpoint and numerical unit fixtures.
+It is not formal Q1 qualification or integrated scientific parity acceptance.
 
-- No successful fresh-process safety evidence exists yet; no claim that the
-  acceptance conditions pass. Both guarded validate and rejected run currently
-  fail at import, not at their intended CLI behavior.
-- Unguarded repeat-process validation succeeds; the intended scientific-run
-  rejection JSON has not yet been independently smoke-tested.
-- Existing synthetic/R5/Q1-A regressions, help entrypoints, full pytest and the
-  fixed-input CI diagnostic have not been run locally for this implementation.
-- Further nested-field/order/hash mutation coverage and existing synthetic
-  output backward-compatibility checks should be reviewed before completion.
-- Schema/code are draft and require independent scientific-identity and scope
-  review. Source/version/environment hashes are declarations, not attestation;
-  no Q0 parity is claimed.
-- The initial general `git fetch origin` failed because the local remote fetch
-  configuration names a deleted branch. Explicit `git fetch origin main`
-  succeeded and the branch was fast-forwarded to the required baseline. No
-  remote configuration was changed.
+```bash
+uv run --locked --extra test --extra benchmark python tools/diagnostics/evaluation_repro.py
+```
 
-Draft PR is for visibility and independent direction only. Do not merge or
-advance configured scientific execution from this partial implementation.
+**Exit 0**. Existing fixed-input COM numerical reproducibility diagnostic;
+expected hash checks matched in all four subprocess variants, same-process
+repeat arrays/rank inputs matched, and default-versus-forced-Haswell array
+comparisons had zero changed cells locally. No new research study was executed.
+No diagnostic output was committed as a raw/scientific artifact.
+
+Additional checks, all successful:
+
+```bash
+uv run --locked python scripts/check_stage5a2_foundation_imports.py
+uv run --locked python scripts/check_stage5a2_pure_leaf_import.py
+uv run --locked sawopt --help
+uv run --locked python -m sawopt.cli --help
+git diff --exit-code 5c344f1 -- tests/integration/test_scientific_config.py
+git diff --check
+```
+
+Both Q1-A import scripts report `forbidden_imports: []`. Help lists only the
+supported validate/run/review/synthetic-task boundary; no scientific executor.
+
+## Observed CLI behavior and identities
+
+`uv run --locked sawopt validate --config configs/examples/r6_synthetic_smoke.yaml`
+returns the existing JSON unchanged:
+
+```json
+{"experiment_id":"r6-synthetic-smoke","method":"lshade","search_fe_limit":8,"status":"VALID","synthetic_only":true,"validation_points":3}
+```
+
+Scientific validate is exercised through the real CLI by repeat-process and
+unchanged fresh-process guard tests. It returns `status: VALID`, `schema_valid:
+true`, `qualification: NOT_EVALUATED`, `run_authorized: false`,
+`scientific_run_implemented: false`, the effective snapshot and these observed
+example identities (also manually read through `load_cli_config`):
+
+| field | SHA-256 |
+|---|---|
+| config_file_sha256 | `dd7301c5f867677c0e95f23abe46cf59b539edf6cb71a39290d69fd731f33f79` |
+| effective_config_sha256 | `e85d07b426bb66d7150245393e1695cf32d44336df22ac637a40793f70b4df33` |
+| input_sha256.model | `691536cdb91bf38cf2140ab6241ac704a8f93abeb47de60e5d8e067ff8c42692` |
+| input_sha256.search_grid | `a0b906309b671b8c403c6de47a9a2afcd5cda58c6f581a3fd5826dfab6bc9fa6` |
+| input_sha256.validation_grid | `3aae08f44a030aa5f583d7bc19f0a6999d56914c73e48e72cd91a52c2c741778` |
+
+`uv run --locked sawopt run --config configs/examples/scientific_validation_only.yaml`
+returns **exit 2**, stderr:
+
+```json
+{"error":{"code":"SCIENTIFIC_RUN_NOT_IMPLEMENTED","message":"scientific declarations support validation only; no execution is available"}}
+```
+
+No manual synthetic research run was launched. Existing synthetic run/review
+contracts were checked by tests using test-owned temporary external roots.
+
+## CI versus local evidence / review limits
+
+The reviewer recorded initial-head CI [#40298364210](https://github.com/miyabimm/saw-com-optimizer/actions/runs/40298364210)
+as diagnostic success and **442 passed / 2 failed** (both original import guards).
+That is historical initial-head evidence, not the repaired-head CI result.
+New-head CI status and exact final HEAD are published in the PR after push;
+local results above must not be represented as GitHub CI or independent review.
+
+The scientific schema remains draft and needs independent review of supported
+subset, scientific identity, nested-field/order/hash mutation coverage, strict
+failure behavior and compatibility limits. No schema semantics were expanded
+in this repair. Source/version/environment hashes are caller declarations, not
+attestation; config hashes establish neither Q0 parity nor physical validity.
+Q0/Q1-A/Q1 gates and all experiment authorizations remain unchanged. No known
+local test failure or import blocker remains; independent full acceptance is
+unresolved. This work does not enable scientific `run`.
