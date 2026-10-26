@@ -51,10 +51,15 @@ ledger or worker behavior was changed.
   — **exit 0**. On the implementation commit, all four expected-hash groups
   matched and all four rank-input comparisons matched. This was ordinary fixed
   input software regression, not a research or optimizer qualification run.
-- These are local checks. The exact-head GitHub CI for the pushed revision is
-  pending; keep PR #158 Draft and unmerged until it completes and receives
-  independent review. No scientific run, Q1 qualification, replay or data
-  mutation was performed.
+- Exact-head GitHub CI on published head
+  `dc97536f5ab75d935819098d62030c3780245e8f` is **PASS**:
+  [CI #40356185505](https://github.com/miyabimm/saw-com-optimizer/actions/runs/40356185505)
+  completed both the fixed-evaluation diagnostic and full pytest job. This is
+  remote CI evidence, not independent scientific-schema acceptance.
+- A later documentation-only evidence update may trigger the normal automatic
+  workflow; its final exact-head result is recorded in the PR notes. Keep PR
+  #158 Draft and unmerged pending independent review. No scientific run, Q1
+  qualification, replay or data mutation was performed.
 
 ## Prior exact-head CI blocker (historical evidence; now addressed below)
 
