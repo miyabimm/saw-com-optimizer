@@ -34,6 +34,14 @@ design and impedance-map workflow described above is not yet available. R5
 storage/review software and synthetic task execution are software contracts,
 not run authorization or scientific qualification.
 
+Issue #157's [scientific configuration v1](scientific_config_v1.md) is a
+**validation-only, single-filter seven-variable declaration subset**. It does
+not accept Stage 5A hybrid `P_D`/`D_P` Q0 inputs, implement configured scientific
+execution or establish Stage 5A readiness. Its source-Git `optimizer.version`
+is not the Q0 semantic algorithm-package identity. Any integrated evaluator,
+non-default fixed-design adapter or Q0 compatibility remains separate gated
+work, not a consequence of schema validation.
+
 ## Historical baseline and limits
 
 - Stage 4A qualified bounded hybrid implementation/protocol behavior, not a

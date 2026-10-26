@@ -17,6 +17,12 @@ retained as audit evidence, not as current implementation instructions.
 - [Experiments and data](experiments.md) — authorization, frozen conditions,
   historical preservation, raw storage, and review schema.
 
+## Versioned software contracts
+
+- [Scientific configuration v1](scientific_config_v1.md) — Issue #157's strict,
+  validation-only declaration schema and exact identity bytes; no scientific
+  execution or experiment permission. Synthetic R6 remains supported.
+
 ## Scoped and historical records
 
 These records preserve evidence or define a specific gate; they do not replace

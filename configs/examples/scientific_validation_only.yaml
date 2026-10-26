@@ -1,0 +1,116 @@
+# VALIDATION ONLY: hypothetical software fixture; not an authorized experiment.
+# Scientific run is deliberately not implemented. No COM/optimizer is executed.
+schema_id: sawopt.scientific_config/1
+experiment_id: scientific-validation-only
+model:
+  kind: fixed
+  material: hypothetical validation fixture
+  assumptions: Explicit uncalibrated parameters; no physical or production claim.
+  parameters:
+    inline:
+      reference_aperture_um: 80.0
+      idt:
+        velocity_m_s: 4000.0
+        loss_db_per_lambda: 0.0
+        kappa_lambda: 0.01
+        kappa_phase_rad: -0.0
+        alpha_sqrtS_per_m: 1.0
+        alpha_phase_rad: 0.0
+        capacitance_F_per_m: 1.0e-10
+      reflector:
+        velocity_m_s: 4000.0
+        loss_db_per_lambda: 0.0
+        kappa_lambda: 0.01
+        kappa_phase_rad: 0.0
+        alpha_sqrtS_per_m: 0.0
+        alpha_phase_rad: 0.0
+        capacitance_F_per_m: 0.0
+      gap:
+        velocity_m_s: 4000.0
+        loss_db_per_lambda: 0.0
+design:
+  topology: filter_design
+  decoder: sawopt.design.space.decode
+  center: grounded
+  wiring: outer_ports
+  variables:
+    - {name: wavelength_um, unit: um, bounds: [4.6, 5.4], hard_bounds: [4.0, 6.0]}
+    - {name: io_idt_pairs, unit: count, bounds: [20, 100], hard_bounds: [10, 120]}
+    - {name: center_idt_pairs, unit: count, bounds: [10, 80], hard_bounds: [1, 100]}
+    - {name: reflector_electrodes, unit: count, bounds: [40, 160], hard_bounds: [20, 180]}
+    - {name: idt_gap_lambda, unit: lambda, bounds: [0.0, 3.0], hard_bounds: [0.0, 4.0]}
+    - {name: reflector_gap_lambda, unit: lambda, bounds: [0.0, 3.0], hard_bounds: [0.0, 4.0]}
+    - {name: aperture_um, unit: um, bounds: [30.0, 150.0], hard_bounds: [20.0, 160.0]}
+  integer_indices: [1, 2, 3]
+  fixed: {metallization_ratio: 0.5, thickness_over_lambda: 0.04}
+  geometry:
+    max_length_um: 750.0
+    max_width_um: 250.0
+    min_electrode_width_um: 0.8
+    min_electrode_gap_um: 0.8
+    max_electrodes: 500
+specification:
+  metric_contract: sawopt.evaluation.measure
+  frequency_unit: MHz
+  passband: [758.0, 803.0]
+  stopbands: [[703.0, 748.0, 32.0], [832.0, 862.0, 30.0]]
+  il_db: 3.0
+  ripple_db: 2.0
+  vswr: 2.5
+  feasibility_tolerance: 1.0e-10
+  comparator: sawopt.optimization.selection.FeasibilityFirstComparator
+ports: {domain: positive_real, unit: ohm, source: 50.0, load: 75.0}
+grids:
+  search:
+    inline: {kind: explicit_points, unit: Hz, points: [710000000.0, 758000000.0, 803000000.0, 840000000.0]}
+  validation:
+    inline: {kind: explicit_points, unit: Hz, points: [710000000.0, 758000000.0, 780000000.0, 803000000.0, 840000000.0]}
+optimizer:
+  name: lshade
+  version: a215c2a0a96c9ce2670e38e1901d49ea0b9c9cab
+  seed: 17
+  rng: numpy.random.default_rng/PCG64
+  comparator: sawopt.optimization.selection.FeasibilityFirstComparator
+  search_fe_limit: 8
+  proposal_policy: backend
+  checkpoint_policy: disabled
+  settings:
+    initial_population: 4
+    min_population: 4
+    history_size: 4
+    pbest_max_fraction: 0.2
+    archive_rate: 1.0
+    max_duplicate_retries: 5
+    total_budget: 8
+    hard_max_budget: 8
+    population_schedule_terminal_budget: 8
+    requested_unique_budget: 8
+    canonical_space_size: null
+    compact_history_cache: false
+    historical_finalist_count: 16
+    exhaustion_duplicate_streak: null
+    memory_update_batch_size: 0
+resources:
+  workers: 1
+  processes: 1
+  threads: 1
+  memory_bytes: 104857600
+  wall_time_seconds: 60.0
+  stop_policy: fail_closed
+  source_commit_sha: a215c2a0a96c9ce2670e38e1901d49ea0b9c9cab
+  environment_sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+storage:
+  kind: r5_external
+  data_root_env: SAWOPT_DATA_ROOT
+  required_free_bytes: 65536
+  expected_cells:
+    - {cell_id: declaration-only, topology: filter_design, method: lshade, seed: 17}
+review_context:
+  purpose: Validation-only software example
+  conditions: Hypothetical model and sparse grids; nothing is evaluated.
+  findings: 'NOT_EVALUATED: no experimental findings; declaration only.'
+  limitations: No calibration, grid sufficiency, feasibility, convergence or parity claim.
+  review_instructions: Review strict declarations and identities, not scientific results.
+  scientific_disposition: CLAIM_PENDING_REVIEW
+  requires_comparison: false
+  requires_validation: true

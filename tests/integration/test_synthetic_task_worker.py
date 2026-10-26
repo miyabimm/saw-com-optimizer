@@ -71,12 +71,26 @@ def _launch(root: Path, key: str, *, steps: int = 16, interval_ms: int = 100):
 def _kill_only_verified_test_child(snapshot: dict, root: Path) -> None:
     pid = snapshot.get("owner_pid")
     expected = (snapshot.get("owner_boot_id"), snapshot.get("owner_start_ticks"))
-    observed = _read_process_identity(pid) if isinstance(pid, int) else None
+    if not isinstance(pid, int):
+        return
+    observed = _read_process_identity(pid)
+    if observed is None or observed[2] == "Z":
+        return
     if (
-        observed is not None and (observed[0], observed[1]) == expected and observed[2] != "Z"
-        and _is_expected_worker(pid, str(root.resolve()), snapshot["run_id"], snapshot["attempt_id"])
+        (observed[0], observed[1]) != expected
+        or not _is_expected_worker(pid, str(root.resolve()), snapshot["run_id"], snapshot["attempt_id"])
     ):
-        _ORIGINAL_OS_KILL(pid, signal.SIGKILL)
+        raise AssertionError("refusing cleanup signal: worker PID identity/argv is no longer verified")
+    _ORIGINAL_OS_KILL(pid, signal.SIGKILL)
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline:
+        observed = _read_process_identity(pid)
+        if observed is None or observed[2] == "Z":
+            return
+        if (observed[0], observed[1]) != expected:
+            return
+        time.sleep(0.01)
+    raise AssertionError("verified synthetic worker did not exit after cleanup SIGKILL")
 
 
 def test_detached_synthetic_child_survives_cli_and_fresh_attach_observes_progress(tmp_path):
@@ -250,52 +264,93 @@ def test_pid_reuse_or_boot_mismatch_fails_closed_and_stop_never_signals_foreign_
     launched = _launch(root, f"identity-{identity_field}", steps=40, interval_ms=100)
     run_id, attempt_id = launched["run_id"], launched["attempt_id"]
     running = _wait_status(root, run_id, lambda value: value["progress_completed"] >= 1)
-    original_identity = _read_process_identity(running["owner_pid"])
-    assert original_identity is not None
-    with sqlite3.connect(root / "synthetic-tasks.sqlite3") as connection:
-        if identity_field == "owner_start_ticks":
-            connection.execute(
-                "UPDATE tasks SET owner_start_ticks=owner_start_ticks+100 WHERE run_id=?", (run_id,),
-            )
-            connection.execute(
-                "UPDATE attempts SET owner_start_ticks=owner_start_ticks+100 WHERE run_id=?", (run_id,),
-            )
-        elif identity_field == "owner_boot_id":
-            connection.execute(
-                "UPDATE tasks SET owner_boot_id=? WHERE run_id=?", ("0" * 36, run_id),
-            )
-            connection.execute(
-                "UPDATE attempts SET owner_boot_id=? WHERE run_id=?", ("0" * 36, run_id),
-            )
-        else:
-            foreign = _read_process_identity(os.getpid())
-            assert foreign is not None
-            connection.execute(
-                "UPDATE tasks SET owner_pid=?,owner_start_ticks=?,owner_boot_id=? WHERE run_id=?",
-                (os.getpid(), foreign[1], foreign[0], run_id),
-            )
-            connection.execute(
-                "UPDATE attempts SET owner_pid=?,owner_start_ticks=?,owner_boot_id=? WHERE run_id=?",
-                (os.getpid(), foreign[1], foreign[0], run_id),
-            )
-
-    calls = []
-    monkeypatch.setattr(os, "kill", lambda *args, **kwargs: calls.append((args, kwargs)))
-    ledger = SyntheticTaskLedger(root)
-    assert ledger.get_status(run_id).state == "PROCESS_IDENTITY_UNKNOWN"
-    with pytest.raises(SyntheticTaskError) as rejected:
-        ledger.request_stop(run_id, attempt_id)
-    assert rejected.value.code == "PROCESS_IDENTITY_UNKNOWN"
-    assert calls == []
-    assert _read_process_identity(os.getpid()) is not None
-    # The test owns this worker and only cleans it if its original identity still matches.
-    _kill_only_verified_test_child({
-        "owner_pid": running["owner_pid"],
-        "owner_boot_id": original_identity[0],
-        "owner_start_ticks": original_identity[1],
+    pid = running["owner_pid"]
+    worker = {
+        "owner_pid": pid,
+        "owner_boot_id": running["owner_boot_id"],
+        "owner_start_ticks": running["owner_start_ticks"],
         "run_id": run_id,
         "attempt_id": attempt_id,
-    }, root)
+    }
+
+    try:
+        original_identity = _read_process_identity(pid)
+        assert original_identity is not None
+        foreign_identity = _read_process_identity(os.getpid())
+        assert foreign_identity is not None and foreign_identity[2] != "Z"
+        # Verify the test-owned worker immediately before quiescing it.
+        assert (original_identity[0], original_identity[1]) == (
+            running["owner_boot_id"], running["owner_start_ticks"],
+        )
+        assert original_identity[2] != "Z"
+        assert _is_expected_worker(pid, str(root.resolve()), run_id, attempt_id)
+        _ORIGINAL_OS_KILL(pid, signal.SIGSTOP)
+
+        deadline = time.monotonic() + 2.0
+        while True:
+            stopped_identity = _read_process_identity(pid)
+            assert stopped_identity is not None, "verified worker exited while being quiesced"
+            assert (stopped_identity[0], stopped_identity[1]) == (
+                original_identity[0], original_identity[1],
+            ), "worker PID identity changed while being quiesced"
+            assert _is_expected_worker(pid, str(root.resolve()), run_id, attempt_id)
+            if stopped_identity[2] in ("T", "t"):
+                break
+            assert time.monotonic() < deadline, "verified worker did not enter SIGSTOP state"
+            time.sleep(0.01)
+
+        # Recheck exact identity and argv immediately before tampering with the test ledger.
+        stopped_identity = _read_process_identity(pid)
+        assert stopped_identity is not None and stopped_identity[2] in ("T", "t")
+        assert (stopped_identity[0], stopped_identity[1]) == (
+            running["owner_boot_id"], running["owner_start_ticks"],
+        )
+        assert _is_expected_worker(pid, str(root.resolve()), run_id, attempt_id)
+        with sqlite3.connect(root / "synthetic-tasks.sqlite3") as connection:
+            if identity_field == "owner_start_ticks":
+                connection.execute(
+                    "UPDATE tasks SET owner_start_ticks=owner_start_ticks+100 WHERE run_id=?", (run_id,),
+                )
+                connection.execute(
+                    "UPDATE attempts SET owner_start_ticks=owner_start_ticks+100 WHERE run_id=?", (run_id,),
+                )
+            elif identity_field == "owner_boot_id":
+                connection.execute(
+                    "UPDATE tasks SET owner_boot_id=? WHERE run_id=?", ("0" * 36, run_id),
+                )
+                connection.execute(
+                    "UPDATE attempts SET owner_boot_id=? WHERE run_id=?", ("0" * 36, run_id),
+                )
+            else:
+                connection.execute(
+                    "UPDATE tasks SET owner_pid=?,owner_start_ticks=?,owner_boot_id=? WHERE run_id=?",
+                    (os.getpid(), foreign_identity[1], foreign_identity[0], run_id),
+                )
+                connection.execute(
+                    "UPDATE attempts SET owner_pid=?,owner_start_ticks=?,owner_boot_id=? WHERE run_id=?",
+                    (os.getpid(), foreign_identity[1], foreign_identity[0], run_id),
+                )
+
+        calls = []
+        monkeypatch.setattr(os, "kill", lambda *args, **kwargs: calls.append((args, kwargs)))
+        ledger = SyntheticTaskLedger(root)
+        assert ledger.get_status(run_id).state == "PROCESS_IDENTITY_UNKNOWN"
+        with pytest.raises(SyntheticTaskError) as rejected:
+            ledger.request_stop(run_id, attempt_id)
+        assert rejected.value.code == "PROCESS_IDENTITY_UNKNOWN"
+        assert calls == []
+        stopped_after = _read_process_identity(pid)
+        assert stopped_after is not None and stopped_after[2] in ("T", "t")
+        assert (stopped_after[0], stopped_after[1]) == (
+            running["owner_boot_id"], running["owner_start_ticks"],
+        )
+        assert _is_expected_worker(pid, str(root.resolve()), run_id, attempt_id)
+        parent_after = _read_process_identity(os.getpid())
+        assert parent_after is not None
+        assert (parent_after[0], parent_after[1]) == (foreign_identity[0], foreign_identity[1])
+    finally:
+        # Cleanup re-verifies the original PID, boot ID, start ticks and argv before signaling.
+        _kill_only_verified_test_child(worker, root)
 
 
 def _kill_verified_synthetic_worker(root: Path, snapshot: dict) -> bool:

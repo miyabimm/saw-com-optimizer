@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .io.cli_config import CliConfigError, load_synthetic_config, validate_synthetic_config
+from .io.cli_config import CliConfigError, load_cli_config, load_synthetic_config, validate_synthetic_config
 
 
 class _SyntheticComparator:
@@ -70,10 +70,10 @@ def _source_sha(repository: Path) -> str:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="sawopt",
-        description="Synthetic-only R6 software CLI; no COM/FE or production evaluation is available.",
+        description="Synthetic R6 execution and non-executing scientific validation; no COM/FE or production execution.",
     )
     commands = parser.add_subparsers(dest="command", required=True)
-    validate = commands.add_parser("validate", help="validate a strict synthetic experiment config without running it")
+    validate = commands.add_parser("validate", help="validate a strict synthetic or scientific declaration without running it")
     validate.add_argument("--config", required=True, help="explicit YAML config path")
     run = commands.add_parser("run", help="run one explicit synthetic software fixture")
     run.add_argument("--config", required=True, help="explicit YAML config path")
@@ -497,7 +497,16 @@ def main(
     if args.command == "synthetic-task":
         return _synthetic_task_main(args)
     try:
-        config = load_synthetic_config(args.config)
+        config = load_cli_config(args.config)
+        if "schema_id" in config:
+            if args.command == "validate":
+                print(json.dumps(config, sort_keys=True, allow_nan=False))
+                return 0
+            print(json.dumps({"error": {
+                "code": "SCIENTIFIC_RUN_NOT_IMPLEMENTED",
+                "message": "scientific declarations support validation only; no execution is available",
+            }}, sort_keys=True), file=sys.stderr)
+            return 2
         if args.command == "validate":
             print(json.dumps({
                 "status": "VALID",
