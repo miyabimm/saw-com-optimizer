@@ -140,13 +140,56 @@ def validate_synthetic_config(config: Mapping[str, Any]) -> dict[str, Any]:
     return result
 
 
-def load_synthetic_config(path: str | Path) -> dict[str, Any]:
-    """Read and validate one explicit YAML config; never resolve implicit defaults."""
+class _StrictLoader(yaml.SafeLoader):
+    """Safe YAML with no duplicate keys, aliases, anchors or merges."""
+
+    def compose_node(self, parent, index):
+        if self.check_event(yaml.AliasEvent) or getattr(self.peek_event(), "anchor", None) is not None:
+            raise CliConfigError("YAML anchors and aliases are unsupported")
+        return super().compose_node(parent, index)
+
+    def construct_mapping(self, node, deep=False):
+        result = {}
+        for key_node, value_node in node.value:
+            if key_node.tag == "tag:yaml.org,2002:merge":
+                raise CliConfigError("YAML merge keys are unsupported")
+            key = self.construct_object(key_node, deep=deep)
+            if not isinstance(key, str):
+                raise CliConfigError("YAML mapping keys must be strings")
+            if key in result:
+                raise CliConfigError(f"duplicate YAML key: {key}")
+            result[key] = self.construct_object(value_node, deep=deep)
+        return result
+
+
+def parse_strict_yaml(content: bytes) -> Any:
+    """Parse one UTF-8 document without invoking YAML object constructors."""
     try:
-        raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, yaml.YAMLError) as exc:
-        raise CliConfigError(f"configuration could not be read: {exc}") from exc
+        return yaml.load(content.decode("utf-8"), Loader=_StrictLoader)
+    except (UnicodeError, yaml.YAMLError, ValueError, RecursionError) as exc:
+        raise CliConfigError(f"invalid strict YAML: {exc}") from exc
+
+
+def _read_config(path: str | Path) -> bytes:
+    try:
+        return Path(path).read_bytes()
+    except OSError as exc:
+        raise CliConfigError("configuration could not be read") from exc
+
+
+def load_synthetic_config(path: str | Path) -> dict[str, Any]:
+    """Read the synthetic format only; scientific configs cannot fall back here."""
+    return validate_synthetic_config(parse_strict_yaml(_read_config(path)))
+
+
+def load_cli_config(path: str | Path) -> dict[str, Any]:
+    """Dispatch solely on the explicit scientific discriminator, never shape."""
+    content = _read_config(path)
+    raw = parse_strict_yaml(content)
+    if isinstance(raw, dict) and "schema_id" in raw:
+        from .scientific_config import resolve_scientific_config
+        return resolve_scientific_config(raw, config_path=Path(path), config_bytes=content)
     return validate_synthetic_config(raw)
 
 
-__all__ = ["CliConfigError", "load_synthetic_config", "validate_synthetic_config"]
+__all__ = ["CliConfigError", "load_cli_config", "load_synthetic_config", "validate_synthetic_config"]

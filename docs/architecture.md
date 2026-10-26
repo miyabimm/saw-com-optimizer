@@ -19,6 +19,17 @@ reports, raw data, scientific conclusions, COM equations, optimizer semantics,
 Q0/Q1 status, or run authorization. The retained and deferred boundaries are
 listed below; old plans remain audit records, not current work instructions.
 
+## Issue #157 validation-only extension
+
+The [scientific config v1 contract](scientific_config_v1.md) adds strict
+scientific declarations and non-executing `validate` dispatch. Scientific
+`run` fails closed with `SCIENTIFIC_RUN_NOT_IMPLEMENTED`; all execution remains
+synthetic-only. `io.cli_config` owns safe YAML/schema dispatch;
+`io.scientific_config` owns the pure resolver, separated to avoid importing
+physics/design/evaluation/optimizer/R5 during validation. This does not provide
+an integrated scientific evaluator, Q0 compatibility or run authorization.
+The baseline inventory below remains a historical snapshot.
+
 ## Target dependency direction
 
 This is the intended product layering, not a claim that every current package
