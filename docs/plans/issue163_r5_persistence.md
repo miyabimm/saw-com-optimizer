@@ -74,6 +74,21 @@ is published, preserve prior artifacts on any incident, report the failure and
 record an error only when safely possible; never automatically remove, repair,
 retry or reopen it. A collision fails without overwriting the existing run.
 
+The S2-B1 summary's initial population is the retained canonical population
+after successful initialization, not necessarily the configured maximum; on
+initialization failure it remains the configured value. Preflight checks the
+applicable bounds without changing backend behavior. It pins the S2-B1
+accounting declarations, including the descriptive unresolved failed-FE policy;
+this does not settle that policy. An S2-B1 record may legitimately contain
+infinite return-loss metrics. R5 canonical JSON cannot faithfully represent them:
+the pure plan fails with `R5_REPRESENTATION_GAP` before filesystem access,
+without clipping or inventing a measurement.
+
+A structurally `COMPLETED` test-only raw run is not scientific evidence and is
+not `READY_FOR_REVIEW`. Declared hashes and the supplied test execution SHA are
+not runtime attestations. Fresh-root checking is not an ownership attestation or
+a defense against non-cooperating concurrent writers.
+
 S2-B1 has no observed checkpoint timestamps, so omit observation rows rather
 than inventing them. The R5 empty convergence artifact remains required and is
 not an optimizer checkpoint or resume facility.

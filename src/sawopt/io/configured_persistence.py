@@ -23,6 +23,28 @@ class PersistencePlanError(ValueError):
     """An untrusted configured result cannot be safely mapped to R5."""
 
 
+_ACCOUNTING = {
+    "unique_evaluations_source": "LShadeBackend.unique_evaluations",
+    "failed_attempt_policy": (
+        "L-SHADE counts unique_evaluations only after an evaluator returns and the "
+        "backend accepts the record; attempted failures are reported separately and "
+        "are not silently charged or retried. Failed-model FE policy requires a future "
+        "explicit qualification/owner decision."
+    ),
+    "duplicate_count_overlaps_cache_hits": True,
+    "validation_outside_search_budget": True,
+}
+
+
+def _raw_payload(result):
+    try:
+        return (json.dumps({"classification": "TEST_ONLY / NOT_SCIENTIFIC_EVIDENCE",
+                            "configured_result": result}, sort_keys=True,
+                           ensure_ascii=False, allow_nan=False, separators=(",", ":")) + "\n").encode("utf-8")
+    except (ValueError, TypeError, UnicodeError, OverflowError) as exc:
+        raise PersistencePlanError("R5_REPRESENTATION_GAP: result cannot be faithfully encoded as canonical JSON") from exc
+
+
 def _equal(actual, expected, label):
     # JSON distinguishes booleans, integers, and floats and forbids NaN.
     try:
@@ -51,6 +73,7 @@ def _build(snapshot, result, run_id, execution_source_sha):
     config = snapshot["effective_config"]
     opt = config["optimizer"]
     _equal(result["schema_id"], "sawopt.configured_lshade_result/1", "result schema")
+    _equal(result["accounting"], _ACCOUNTING, "accounting contract")
     expected_identity = {
         "schema_id": context.schema_id, "experiment_id": context.experiment_id,
         "effective_config_sha256": context.effective_config_sha256,
@@ -88,7 +111,7 @@ def _build(snapshot, result, run_id, execution_source_sha):
     c = {name: _count(counters, name) for name in names}
     unique, attempts = c["unique_evaluations"], c["search_evaluator_attempts"]
     returned, failed = c["search_evaluator_records_returned"], c["failed_search_evaluator_attempts"]
-    if (unique > opt["search_fe_limit"] or returned < unique or attempts != returned + failed
+    if (unique > opt["search_fe_limit"] or returned < unique or attempts > c["proposals_total"] or attempts != returned + failed
             or failed > 1 or c["search_grid_points_requested"] != attempts * search_points
             or c["search_grid_points_per_call"] != search_points
             or c["validation_grid_points_per_call"] != validation_points
@@ -104,18 +127,34 @@ def _build(snapshot, result, run_id, execution_source_sha):
         if unique or attempts or c["proposals_total"]:
             raise PersistencePlanError("missing backend summary")
     else:
+        _equal(sorted(summary), sorted(("backend", "initial_population", "current_population", "generations",
+            "population_schedule_identifier", "population_schedule_version", "population_schedule_terminal_budget",
+            "hard_max_budget", "search_space_exhausted", "boundary_repair_counts")), "summary fields")
         _equal(summary["backend"], "lshade", "backend")
-        _equal(summary["initial_population"], opt["settings"]["initial_population"], "population")
         _equal(summary["hard_max_budget"], opt["search_fe_limit"], "backend budget")
         _equal(summary["population_schedule_terminal_budget"], opt["search_fe_limit"], "schedule budget")
         _equal(summary["population_schedule_identifier"], "lshade_linear_population_v1", "schedule")
         _equal(summary["population_schedule_version"], 1, "schedule version")
-        for key in ("current_population", "generations"):
-            _count(summary, key)
+        initial = _count(summary, "initial_population")
+        current = _count(summary, "current_population")
+        _count(summary, "generations")
+        repairs = summary["boundary_repair_counts"]
+        if not isinstance(repairs, Mapping) or set(repairs) != {"lower", "upper"}:
+            raise PersistencePlanError("invalid boundary repairs")
+        for values in repairs.values():
+            if (not isinstance(values, list) or len(values) != len(context.active_bounds)
+                    or any(type(value) is not int or value < 0 for value in values)):
+                raise PersistencePlanError("invalid boundary repairs")
         if type(summary["search_space_exhausted"]) is not bool:
             raise PersistencePlanError("invalid exhaustion flag")
-        if summary["current_population"] > summary["initial_population"]:
+        maximum = opt["settings"]["initial_population"]
+        if initial > maximum or current > initial or current > unique:
             raise PersistencePlanError("invalid current population")
+        if search["status"] in ("BUDGET_REACHED", "EXHAUSTED"):
+            if not (opt["settings"]["min_population"] <= current <= initial <= unique):
+                raise PersistencePlanError("invalid initialized population")
+        elif initial != maximum and initial < opt["settings"]["min_population"]:
+            raise PersistencePlanError("invalid initial population")
     incumbent = search["incumbent"]
     record = validation["record"]
     comparator = FeasibilityFirstComparator()
@@ -173,6 +212,7 @@ def _build(snapshot, result, run_id, execution_source_sha):
         cell_status, reason, observed = "FAILED", failure["message"], 0
     else:
         raise PersistencePlanError("unsupported result status")
+    _raw_payload(result)  # Validate the exact published bytes while planning is still pure.
     return {"snapshot": snapshot, "result": result, "run_id": run_id,
             "execution_source_sha": execution_source_sha, "cell_status": cell_status,
             "search_fes": unique, "validation_points": observed, "reason": reason,
@@ -198,6 +238,20 @@ def export_persistence_review(*, run_path, repository_root):
     raise ReviewEvidenceUnavailable("VALIDATION_EVIDENCE_UNAVAILABLE: S2-B1 retains no physical response")
 
 
+def _incident_classification(exc):
+    # R5 may wrap a corrupt manifest's JSON/Unicode errors in RunStorageError.
+    # Preserve that distinction from actual I/O failures through the cause chain.
+    causes = []
+    while exc is not None and exc not in causes:
+        causes.append(exc)
+        exc = exc.__cause__
+    if any(isinstance(item, (ValueError, UnicodeError)) for item in causes):
+        return "VALIDATION"
+    if any(isinstance(item, OSError) for item in causes):
+        return "IO"
+    return "UNKNOWN"
+
+
 def persist_persistence_plan(plan, *, data_root):
     """Persist a verified software fixture using the existing R5 transaction APIs.
 
@@ -217,10 +271,7 @@ def persist_persistence_plan(plan, *, data_root):
         # symlinks. Fixture callers must provide a fresh, isolated leaf.
         if os.path.lexists(data_root):
             raise FileExistsError("test-only data root already exists")
-        payload = (json.dumps({"classification": "TEST_ONLY / NOT_SCIENTIFIC_EVIDENCE",
-                               "configured_result": verified["result"]},
-                              sort_keys=True, ensure_ascii=False, allow_nan=False,
-                              separators=(",", ":")) + "\n").encode("utf-8")
+        payload = _raw_payload(verified["result"])
     except (KeyError, TypeError, ValueError) as exc:
         if isinstance(exc, PersistencePlanError):
             raise
@@ -261,7 +312,7 @@ def persist_persistence_plan(plan, *, data_root):
         return run.path
     except Exception as exc:
         try:
-            run.record_error(classification="IO", message=f"Test-only persistence incident: {type(exc).__name__}", cell_id=cell["cell_id"])
+            run.record_error(classification=_incident_classification(exc), message=f"Test-only persistence incident: {type(exc).__name__}", cell_id=cell["cell_id"])
         except Exception as incident_exc:
             raise ExceptionGroup("persistence incident and failure recording incident", [exc, incident_exc]) from exc
         raise
