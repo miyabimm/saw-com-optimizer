@@ -29,8 +29,9 @@ modeled-constraint consistency, and reproducibility are required.
 **Current implementation boundary:** the supported design/run CLI path remains
 synthetic/injected-only. Issues #159 and #161 add library-only configured
 candidate evaluation and single-cell L-SHADE orchestration with explicitly
-injected evaluators; they do not add a scientific CLI route, R5 run lifecycle,
-source/environment attestation, or run authorization. The R5 `review export`
+injected evaluators. Issue #165 adds a test-only R5 pre-execution fixture
+lifecycle and optional final-response evidence; it does not add a scientific CLI
+route, source/environment attestation, or run authorization. The R5 `review export`
 subcommand only postprocesses an existing closed raw run. The integrated
 configurable real-SAW design and impedance-map workflow described above is not
 yet available. R5 storage/review software and synthetic task execution are
