@@ -26,13 +26,15 @@ material attribution, manufacturability certification, and device correlation
 are not project gates. Numerical correctness, explicit units and conventions,
 modeled-constraint consistency, and reproducibility are required.
 
-**Current implementation boundary:** the repository contains reusable COM,
-design, evaluation, and optimization components, but its supported design/run
-path is synthetic/injected-only. The R5 `review export` subcommand only
-postprocesses an existing closed raw run. The integrated configurable real-SAW
-design and impedance-map workflow described above is not yet available. R5
-storage/review software and synthetic task execution are software contracts,
-not run authorization or scientific qualification.
+**Current implementation boundary:** the supported design/run CLI path remains
+synthetic/injected-only. Issues #159 and #161 add library-only configured
+candidate evaluation and single-cell L-SHADE orchestration with explicitly
+injected evaluators; they do not add a scientific CLI route, R5 run lifecycle,
+source/environment attestation, or run authorization. The R5 `review export`
+subcommand only postprocesses an existing closed raw run. The integrated
+configurable real-SAW design and impedance-map workflow described above is not
+yet available. R5 storage/review software and synthetic task execution are
+software contracts, not run authorization or scientific qualification.
 
 Issue #157's [scientific configuration v1](scientific_config_v1.md) is a
 **validation-only, single-filter seven-variable declaration subset**. It does

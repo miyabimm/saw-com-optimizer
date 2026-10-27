@@ -48,6 +48,9 @@ execution:
   and [config-driven CLI design](plans/issue155_config_driven_cli_design.md)
   record a scoped Stage 5A evidence audit and implementation proposal only;
   they do not authorize code changes to scientific behavior or any run.
+- [Issue #161 configured L-SHADE orchestration](plans/issue161_configured_lshade_orchestration.md)
+  records the bounded S2-B1 library-only orchestration and accounting contract;
+  it adds no CLI route, R5 integration, or run authorization.
 
 Older reconstruction plans, handoffs, and issue-specific designs remain in
 Git where useful for audit. They are dated evidence, not current operating

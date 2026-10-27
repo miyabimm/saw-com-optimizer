@@ -214,6 +214,11 @@ def _evaluation_context(snapshot: Any) -> ConfiguredEvaluationContext:
     )
 
 
+def configured_evaluation_context(snapshot: Any) -> ConfiguredEvaluationContext:
+    """Verify and freeze the evaluation fields of one resolved v1 snapshot."""
+    return _evaluation_context(snapshot)
+
+
 def _physical_proposal(vector: Any, context: ConfiguredEvaluationContext) -> np.ndarray:
     try:
         values = list(vector)
@@ -445,5 +450,6 @@ def dense(d, cfg, rs, rl, wiring="outer_ports", counters=None, *,
 
 __all__ = [
     "CandidateEvaluationError", "CandidateInputError", "ConfiguredCandidateEvaluator",
-    "ConfiguredEvaluationContext", "SnapshotValidationError", "dense",
+    "ConfiguredEvaluationContext", "SnapshotValidationError",
+    "configured_evaluation_context", "dense",
 ]
