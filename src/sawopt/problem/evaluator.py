@@ -335,7 +335,11 @@ class ConfiguredCandidateEvaluator:
     """
 
     def __init__(self, resolved_snapshot: Mapping[str, Any], *,
-                 evaluate_design_fn: Callable | None = None):
+                 evaluate_design_fn: Callable | None = None,
+                 capture_validation_response: bool = False):
+        if type(capture_validation_response) is not bool:
+            raise TypeError("capture_validation_response must be boolean")
+        self._capture_validation_response = capture_validation_response
         self.context = _evaluation_context(resolved_snapshot)
         if evaluate_design_fn is not None and not callable(evaluate_design_fn):
             raise TypeError("evaluate_design_fn must be callable")
@@ -361,7 +365,7 @@ class ConfiguredCandidateEvaluator:
                 else self.context.validation_frequencies_hz,
                 dtype=np.float64,
             ).copy()
-            record, _network, _simulation = self._evaluate_design_fn(
+            record, network, simulation = self._evaluate_design_fn(
                 copy.deepcopy(design), _thaw(self.context.evaluation_config), frequencies,
                 self.context.source_impedance_ohm, self.context.load_impedance_ohm,
                 wiring=self.context.wiring,
@@ -385,6 +389,37 @@ class ConfiguredCandidateEvaluator:
                 "grid_point_count": len(frequencies),
             })
             result["rank_key"] = self._comparator.rank_key(result)
+            if phase == "VALIDATION" and self._capture_validation_response:
+                actual_grid = np.asarray(simulation.frequencies_hz, dtype=np.float64)
+                if not np.array_equal(frequencies, np.asarray(self.context.validation_frequencies_hz)):
+                    raise ValueError("validation frequency argument was mutated")
+                if not np.array_equal(actual_grid, frequencies):
+                    raise ValueError("simulation frequencies differ from the validation grid")
+                n = len(frequencies)
+                arrays = {
+                    "y_parameters": (simulation.y_parameters, (n, 2, 2)),
+                    "s": (network["s"], (n, 2, 2)),
+                    "gt": (network["gt"], (n,)),
+                    "il_db": (network["il"], (n,)),
+                    "vswr": (network["vswr"], (n, 2)),
+                }
+                if "return_loss_db" in network:
+                    arrays["return_loss_db"] = (network["return_loss_db"], (n, 2))
+                captured = {}
+                for name, (value, shape) in arrays.items():
+                    array = np.asarray(value)
+                    if array.shape != shape or not np.isfinite(array).all():
+                        raise ValueError(f"invalid validation response array: {name}")
+                    captured[name] = array.copy()
+                result["validation_response"] = {
+                    **captured, "frequencies_hz": frequencies.copy(),
+                    "canonical_vector": canonical.tolist(),
+                    "effective_config_sha256": self.context.effective_config_sha256,
+                    "model_sha256": self.context.input_sha256["model"],
+                    "grid_sha256": self.context.validation_grid_sha256,
+                    "source_impedance_ohm": self.context.source_impedance_ohm,
+                    "load_impedance_ohm": self.context.load_impedance_ohm,
+                }
             return result
         except CandidateInputError:
             raise
