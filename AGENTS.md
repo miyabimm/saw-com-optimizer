@@ -49,7 +49,10 @@ Follow the roadmap's staged gates. Stage 4C remains
 `STAGE4C_TOPOLOGY_SELECTION_UNRESOLVED`; B28 Rx at 50/50 ohm is a
 diagnostic/regression case, not the universal product target. Q0 is
 `CLOSED / ACCEPTED`; Q1-A is `WORK_UNIT_READY / CLOSED`, but **none of
-Q1-01…Q1-23 has passed**. Q1-B/C/D/E are `NOT AUTHORIZED / NOT STARTED`.
+Q1-01…Q1-23 has passed**. Issue #167's integrated Q1-B/C implementation and bounded deterministic COM-free
+synthetic unit/integration verification were separately owner-authorized after
+scope confirmation; the unit is `IMPLEMENTED / LOCAL_REVIEW_PENDING`.
+Q1-D/E remain `NOT AUTHORIZED / NOT STARTED`.
 Do not run new scientific COM/FE studies, optimizer qualification experiments,
 a real SAW study, resume Stage 4C, change a budget/bound/constraint, or launch
 production without the separate authorization required by

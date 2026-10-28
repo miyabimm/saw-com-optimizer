@@ -1,0 +1,32 @@
+{
+  "source_files_sha256": {
+    "src/sawopt/optimization/lshade.py": "ada6063855d791758024b52b835492e72c6b1cb5f8d6fbfcff39c52049aec324",
+    "src/sawopt/optimization/controlled_de.py": "4d45865538bcb1ead271005794531a91a92ee7abd54c3ef82d33a4eea8ffcb4b",
+    "src/sawopt/studies/stage5a2/arm.py": "f262a4115850248c6544edcc3ec5c1bdc30e1c10b694edee12d862bb9632e84d",
+    "src/sawopt/studies/stage5a2/candidates.py": "16891d8231082510388a044c5114ee4a732755e33c8f425971bf02bbe6745aee",
+    "src/sawopt/studies/stage5a2/live_state.py": "66b7342ca6008b13f5e6158ab614e0eb509ebba329f1410f8c249bdf55a0a0c3",
+    "src/sawopt/studies/stage5a2/pair.py": "e3fe909ca1234e475363e480ea2966949e3d2edb138448e13ca0d10938ae8a67",
+    "tests/unit/studies/q1bc_fixture.py": "e3bea6f09c05d28a61afc53ccab979dc42275d1de59a58182b45331f9569861c",
+    "tests/unit/studies/test_stage5a2_q1bc.py": "a1954460132326e9113b1f82291ed68f0a4db8888bb704f9149de66397d9c3a8",
+    "tests/unit/studies/test_stage5a2_q1bc_behavior.py": "5b1a55bc234747fa37fa35a2edf6a8cbd12ee2ac6099e9f3143406d308d2a740"
+  },
+  "implementation_sha256": "4a992684f4a00bfa25f32aebba76048f5cf29ef5025e3aa81fcb6b99fad88660",
+  "arm_config_hashes": [
+    ["lshade", "c1690bb0741774e6665b9b18ca73daeee243fd107ee53579fbe06a6196e60b71"],
+    ["controlled_de", "17b5165ed8df6dc5203d29bf3c26f0a5aaeeb400ba9d26d925435b6d8da0e941"]
+  ],
+  "environment": {
+    "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+    "platform": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "numpy": "2.5.3",
+    "scipy": "1.18.1",
+    "uv_lock_sha256": "5dfd4435726518e40d5991fadc5af4099725cc0763af932e1f9015066aa1f0ff",
+    "test_dispatch": "OPENBLAS_CORETYPE=Haswell; OMP/OPENBLAS/MKL/BLIS/NUMEXPR_NUM_THREADS=1",
+    "threadpools": [{
+      "user_api": "blas", "internal_api": "openblas", "num_threads": 1,
+      "version": "0.3.34.106.0", "threading_layer": "pthreads", "architecture": "Haswell"
+    }],
+    "cpu": "AMD Ryzen 7 PRO 4750G with Radeon Graphics"
+  },
+  "environment_sha256": "9cf6d6c34a146e0e0bb368a848a45de33a971a536d14b5a594cabcd54afda6a1"
+}

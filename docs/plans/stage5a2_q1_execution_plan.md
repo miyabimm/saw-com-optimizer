@@ -1,12 +1,14 @@
 # Stage 5A-2 Q1 synthetic qualification — execution plan
 
-**Status (2026-10-22):** Q1-A is `WORK_UNIT_READY / CLOSED`: [PR #54](https://github.com/MasayaTakagi/saw-com-optimizer/pull/54) merged at `03d673052c7570d86b78b43849f649758bb7d3f4` and [Issue #52](https://github.com/MasayaTakagi/saw-com-optimizer/issues/52) closed as completed after independent review and explicit user acceptance. Q1-B/C/D/E remain `NOT AUTHORIZED / NOT STARTED`; no official Q1 gate has passed.
+**Status (2026-10-22):** Q1-A is `WORK_UNIT_READY / CLOSED`: [PR #54](https://github.com/MasayaTakagi/saw-com-optimizer/pull/54) merged at `03d673052c7570d86b78b43849f649758bb7d3f4` and [Issue #52](https://github.com/MasayaTakagi/saw-com-optimizer/issues/52) closed as completed after independent review and explicit user acceptance. Q1-B/C are now one authorized engineering unit under Issue #167 (see the authorization update below); Q1-D/E remain `NOT AUTHORIZED / NOT STARTED`. No official Q1 gate has passed.
 
 **Q0:** `CLOSED / ACCEPTED` under the user decision recorded in the [Q0 closeout](../history/stage5a2_q0_closeout_20261021.md).
 
 **Authority:** [Q0-approved comparison contract](stage5a2_minimum_fair_comparison.md), the sole official [Q1-01…Q1-23 qualification matrix](stage5a2_q1_qualification_matrix.md), and the accepted [Q0-R3 protocol](../../reports/escalation_packets/stage5a2_q0_protocol_revision_r3_20261021.md), together with retained Q0-R2 terms and the [project roadmap](../project_roadmap.md).
 
 **Scope:** Issue [#52](https://github.com/MasayaTakagi/saw-com-optimizer/issues/52) separately authorizes Q1-A implementation and deterministic synthetic/unit tests, including its narrow legacy `canonicalize` characterization. It does not authorize Q1-B/C/D/E, synthetic integration, COM/network/physics evaluation, real SAW optimization, Stage 4C mutation, or production orchestration/run.
+
+**Issue #167 authorization update:** After an explicit scope confirmation, the owner authorized Q1-B/C implementation, deterministic COM-free synthetic unit/integration verification, and one integrated Draft PR in the implementation conversation. This supersedes the earlier B/C start prohibition only within that scope. B/C implementation is `IMPLEMENTED / LOCAL_REVIEW_PENDING`, not `WORK_UNIT_READY`. Q1-D exhaustive recovery, Q1-E 12-cell integration, official gate closure and scientific/production execution remain unauthorized. Local evidence and remaining dependencies are recorded in [the Q1-BC report](../../reports/stage5a2_q1bc_local_evidence.md).
 
 Q1 is deterministic, COM-free software qualification. Its synthetic objective is a software fixture, not a SAW proxy or a scientific comparison. Q1 must not resolve or change Q0 decisions. Q1 passing does not authorize a real COM comparison, pilot, or production run; each remains a separate user-reviewed authorization.
 
@@ -23,7 +25,7 @@ Q1-A: identity/journal/RNG/population foundation
                                         └── Q1-E: synthetic integration/reporting
 ```
 
-Q1-B and Q1-C depend on the stable Q1-A contracts and can be developed as separate reviewed work units. Q1-D requires the integrated A/B/C transitions. Q1-E consumes the qualified interfaces, statuses, traces and comparison rules from A–D. Every boundary change must preserve the Q0 data/identity/event semantics; if a Q0 design decision would need to change, stop and return to governance rather than deciding it in implementation.
+Q1-B and Q1-C depend on the accepted Q1-A contracts and are implemented as **one integrated engineering work unit / one Draft PR** under Issue #167. Their separate cards and primary gate ownership below remain contract subdivisions, not separate PR requirements. Q1-D requires the integrated A/B/C transitions. Q1-E consumes the qualified interfaces, statuses, traces and comparison rules from A–D. Every boundary change must preserve the Q0 data/identity/event semantics; if a Q0 design decision would need to change, stop and return to governance rather than deciding it in implementation.
 
 ## 2. Frozen Q0 contract carried through Q1
 
@@ -61,6 +63,16 @@ All Q1 runners receive an evaluator implementation by dependency injection. The 
 
 ## 4. Proposed module ownership and protected boundaries
 
+**Issue #167 concrete ownership:** the current backend owner is `optimization/`,
+not the removed `optimizers/` package. B/C uses `optimization/controlled_de.py`,
+`studies/stage5a2/pair.py` (`prepare_pair`), `arm.py` (`ArmSession`),
+`live_state.py` (`snapshot`/`restore`) and `candidates.py`. Thus the original
+`lshade_adapter.py`/runner proposals below resolve to these smaller current
+seams; no retired study runner or old-path compatibility package is recreated.
+The unchanged comparator is `optimization.selection.GeometryFirstComparator`.
+Stage 4 source/caller names retained in the A historical evidence are Git
+references, not instructions to restore deleted runtime modules.
+
 The paths below are implementation targets. Keep Stage 5A-2 additions in a study-scoped package (recommended `src/sawopt/studies/stage5a2/`) and a dedicated controlled optimizer backend; do not repurpose Stage 4C production state or broadly modify shared numerical behavior. The shared-source extraction is a bounded candidate seam; its implementation is authorized only within Q1-A Issue #52 and remains subject to the stated parity/protection evidence. Do not move or refactor any decoder's separate rounding logic.
 
 | Module/location | Intended responsibility in Q1 | Protected boundary |
@@ -70,11 +82,11 @@ The paths below are implementation targets. Keep Stage 5A-2 additions in a study
 | New `.../rng.py` | PCG64 codec, `stage5a2_rng_call_v1`, typed call tape, call facade, START/COMMITTED and replay. | No hidden draws, coercions, changed source draw order, or committed-call redraw. |
 | New `src/sawopt/design/__init__.py`, `src/sawopt/design/canonicalization.py` | Dependency-leaf package and the sole production implementation of the current hybrid vector canonicalization primitive. The new leaf is NumPy/typing-only; `HybridDesignSpace.canonicalize` delegates without signature or result changes. | Every parent initializer is physics-free; preserve conversion/check/order/clip/half-up/clip/key construction, output ownership, input non-mutation and error behavior bit-for-bit. No decoder/geometry/physics logic is moved. |
 | New `.../initialization.py` | Representation-aware physical sampler, 234-member seal, lossless representation rows, both pure arm preflights and certificates; imports the new design leaf directly. | No fitness information, COM/provider import or call; exact Q0 sampler law and fail-closed equality. |
-| New `src/sawopt/optimizers/controlled_de.py` | Dedicated fixed `DE/rand/1/bin` backend and complete generation/target state interface. | No legacy-backend relabeling; no adaptation/archive/shrink/polish/fallback or changed operator semantics. |
+| New `src/sawopt/optimization/controlled_de.py` | Dedicated fixed `DE/rand/1/bin` backend and complete generation/target state interface. | No legacy-backend relabeling; no adaptation/archive/shrink/polish/fallback or changed operator semantics. |
 | New `src/sawopt/studies/stage5a2/lshade_adapter.py` | Transaction-aware evaluator/RNG seams and full live-state codec/restore adapter around existing L-SHADE. | Retain existing search path and Stage 4C state version; do not use null-coercing payload as lossless source. |
 | New `.../recovery.py` / `runner.py` | Synthetic-only coordination of private arm journals, phase transitions, restart, status and fault injection. | No COM/provider import, no production orchestration, no Stage 4C reader/writer. |
 | New `.../reporting.py` | Qualified synthetic integration records, resource/time ledger and exact Q0 censored-comparison reporting. | No imputation, survivor-only aggregation or newly invented ranking/reporting rule. |
-| Existing `src/sawopt/optimizers/lshade.py` | Minimal observation hooks only where unavoidable to preserve RNG/evaluation/step boundaries. | No arithmetic, branch, method/argument order, retry, fallback, adaptation, cache or survivor behavior change. |
+| Existing `src/sawopt/optimization/lshade.py` | Minimal observation hooks only where unavoidable to preserve RNG/evaluation/step boundaries. | No arithmetic, branch, method/argument order, retry, fallback, adaptation, cache or survivor behavior change. |
 | Existing `src/sawopt/optimizers/selection.py`; `src/sawopt/problem/hybrid.py` | Read-only reuse of `GeometryFirstComparator`; the existing public `HybridDesignSpace.canonicalize` signature delegates to the new shared leaf after the gated extraction. Q1 runtime imports the leaf, not the physics-dependent problem package. | Do not change rank tuples/ties or canonicalization semantics; preserve Stage 4A/4B/4C caller and state behavior with explicit parity evidence. |
 | Existing `src/sawopt/studies/hybrid_stage4b.py`; `src/sawopt/optimizers/checkpoint_session.py` | Read-only evidence/reference for existing sampler and checkpoint ownership. | No Stage 4B/4C protocol, saved state, or historical data mutation. New Stage 5A-2 persistence is separate. |
 | New focused test files under `tests/optimizers/` and `tests/studies/` | Synthetic, deterministic unit/fault/replay/integration fixtures per official gates, plus separately labeled legacy canonicalization compatibility characterization. | Q1 runtime/integration must not import/call COM or launch production orchestration. The isolated characterization may import the legacy path only under explicit Q1-A user authorization and must never invoke physics. |
@@ -119,7 +131,7 @@ Q1-A preserved the pre-extraction baseline before changing canonicalization and 
 
 **Q0 contract linkage.** Q0-R1/R2 controlled-DE proposal/donor/crossover/reflection/survivor/retry rules; Q0-R2 transaction and evaluation accounting; Q0-R3 RNG call tape, shared initialization and pre-FE identity contract.
 
-**Modules/responsibilities.** New `src/sawopt/optimizers/controlled_de.py`; Q1-A journal/RNG/identity APIs; minimal integration in `runner.py`; new DE-focused synthetic tests. Do not use/relabel `ScipyDELegacyBackend` or `FixedDEReferenceBackend`. Do not edit comparator/canonicalizer.
+**Modules/responsibilities.** New `src/sawopt/optimization/controlled_de.py`; Q1-A journal/RNG/identity APIs; minimal integration in `runner.py`; new DE-focused synthetic tests. Do not use/relabel `ScipyDELegacyBackend` or `FixedDEReferenceBackend`. Do not edit comparator/canonicalizer.
 
 **Inputs, outputs, state, persistence.** Inputs are a ready pair/cell identity, validated attached population, exact DE initial physical vectors, injected deterministic synthetic evaluator, PCG64 facade and 4,096 terminal budget. Persist generation-start parent snapshot, target order/cursor, ordered pending trials/results, retry cursor, proposal and evaluation events, private canonical cache, counters, trace and generation checkpoint. Outputs include exact search status and a complete backend/journal state suitable for replay.
 
@@ -131,7 +143,7 @@ Q1-A preserved the pre-extraction baseline before changing canonicalization and 
 
 **Evidence.** Golden input/output fixtures, proposal and call-identity trace, FE/counter ledger, final partial-generation proof, duplicate/failure boundary cases, checkpoint/replay digest, source/config/environment fingerprint and focused-test summary.
 
-**PR artifact.** One focused Q1-B implementation PR with dedicated backend, adapter use, gate-linked synthetic tests and compact replay evidence. No COM evaluation or real study outputs.
+**PR artifact (Issue #167 grouping).** One integrated Q1-B/C Draft PR with dedicated backend, adapter use, gate-linked synthetic tests and compact replay evidence. No COM evaluation or real study outputs.
 
 **Exit to Q1-D/E.** Q1-B PR independently reviewed/accepted as `WORK_UNIT_READY`; DE state/trace/replay interface is stable for Q1-D and E. Carry local evidence for Q1-02/08/09/10 forward; Q1-06/07/13/17 remain `PENDING_DEPENDENCY` until their L-SHADE, integrated transaction and recovery clauses are covered. Do not report those gates as full passes at this exit.
 
@@ -141,7 +153,7 @@ Q1-A preserved the pre-extraction baseline before changing canonicalization and 
 
 **Q0 contract linkage.** Frozen Q0 L-SHADE resolved settings, source operator/update/fallback behavior, 4,096 cold horizon, versioned lossless state/RNG contracts, Q0-R3 full pre-step replay and Q1 result-store/backend-cache separation.
 
-**Modules/responsibilities.** New `lshade_adapter.py` and stage-specific codec/state boundary; minimal, reviewed observation hooks in `src/sawopt/optimizers/lshade.py` only if required. Continue use of the existing `GeometryFirstComparator` unchanged. Do not alter Stage 4C `state_version=4`, `checkpoint_session.py`, historical readers or saved checkpoints.
+**Modules/responsibilities.** New `lshade_adapter.py` and stage-specific codec/state boundary; minimal, reviewed observation hooks in `src/sawopt/optimization/lshade.py` only if required. Continue use of the existing `GeometryFirstComparator` unchanged. Do not alter Stage 4C `state_version=4`, `checkpoint_session.py`, historical readers or saved checkpoints.
 
 **Inputs, outputs, state, persistence.** Inputs are the immutable cell identity, Phase-II-attached common population and L-SHADE genotype, lossless RNG facade, private journal/result adapter and deterministic synthetic evaluator. Persist complete live pre-step state, event-tape cursor, proposal/evaluation events, result/cache/FE state, fallback and memory batch state, and exactly one post-step commit (including FE delta zero). On restore, replay existing `_generation` control flow from the pre-step; rebuild locals from recorded RNG/results, never partial values.
 
@@ -153,7 +165,7 @@ Q1-A preserved the pre-extraction baseline before changing canonicalization and 
 
 **Evidence.** Uninstrumented-versus-hooked parity artifact; complete pre/post state and per-step replay digest; fallback and no-FE trace; codec round-trip/negative cases; separate backend and journal counter ledger; pinned source/config/environment identity and focused tests.
 
-**PR artifact.** One Q1-C integration PR with minimal hook diff, adapter/state codec, isolated synthetic tests and explicit historical-protection diff; no COM runs and no migration of Stage 4C states.
+**PR artifact (Issue #167 grouping).** The same integrated Q1-B/C Draft PR, with minimal hook diff, adapter/state codec, isolated synthetic tests and explicit historical-protection diff; no COM runs and no migration of Stage 4C states.
 
 **Exit to Q1-D/E.** Q1-C PR independently reviewed/accepted as `WORK_UNIT_READY`; the L-SHADE interface and shared-source parity evidence are stable. Carry local evidence for Q1-01/11 and the live-state portion of Q1-14 forward; Q1-18 remains `PENDING_DEPENDENCY` until D completes crash/restart qualification. No full-gate claim is made here.
 
@@ -253,9 +265,9 @@ Q1 qualification artifacts must be sufficient for an independent reader to repro
 
 ## 8. Start gate and stop conditions
 
-### Start gate — currently unmet
+### Start gate — met for the bounded Issue #167 B/C unit only
 
-Q0 closeout is recorded and independent Q0 review is complete. The missing condition is **separate explicit user authorization to start Q1 implementation and deterministic synthetic-only qualification**. Until that authorization is received, Q1 remains not started; this plan is not such permission.
+Q0 closeout and Q1-A acceptance remain recorded. The owner explicitly authorized the Issue #167 B/C implementation and deterministic synthetic-only unit/integration scope after confirmation in the implementation conversation. This is not Q1-D/E authorization, a full Q1 qualification launch, scientific experiment permission or acceptance of this implementation. The earlier plan/Issue alone did not grant permission.
 
 ### Stop/fail-closed conditions
 
