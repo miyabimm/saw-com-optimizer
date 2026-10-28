@@ -38,6 +38,14 @@ add speculative abstractions or refactor unrelated code.
   owner-delegated scope. The user decides material scientific changes,
   experiment execution, and gated project-stage transitions.
 
+Continue authorized multi-step implementation: After essential inspection,
+begin coding in small, testable increments. A requirement for one complete
+Draft PR does not prohibit incremental edits, tests, or commits. Do not stop
+after investigation or baseline tests merely because the scope seems large
+or a time/token budget might be insufficient. If an actual blocker or
+execution limit prevents completion, preserve work and report its exact
+status; never present partial work as meeting the full acceptance criteria.
+
 For meaningful work, report branch, commit SHA, review URL, checks run, and
 unresolved questions. Stop for an owner decision before changing scientific
 meaning, optimizer/search/budget semantics, COM physics, comparison fairness,
