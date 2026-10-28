@@ -245,13 +245,15 @@ def test_pre_step_result_before_update_replay_does_not_recommit_fe_or_redraw(tmp
     assert len(arm.trace) == arm.backend.unique_evaluations == 236
 
 
-def test_lshade_six_normal_attempts_one_256_candidate_fallback_first_none_zero_fe(tmp_path):
+@pytest.mark.parametrize("initial_streak", [0, 65536 - 262])
+def test_lshade_six_normal_attempts_one_256_candidate_fallback_first_none_zero_fe(tmp_path, initial_streak):
     _, _, _, _, _, arms = _pair(tmp_path)
     arm = arms[0]
     backend = arm.backend
     original_canonicalizer = backend.canonicalizer
     frozen = backend._population[0].physical.copy()
     backend.canonicalizer = lambda v: (frozen.copy(), tuple(frozen))
+    arm.no_progress = initial_streak
     before_fe = backend.unique_evaluations
     before_events = len(arm.journal.events())
     arm.step()
@@ -262,7 +264,15 @@ def test_lshade_six_normal_attempts_one_256_candidate_fallback_first_none_zero_f
     assert sum(e.event_type == "OPTIMIZER_STEP_COMMITTED" for e in new) == 1
     assert backend.unique_evaluations == before_fe == len(arm.trace)
     assert backend.generations == 1 and backend._memory_batch_proposals == 1
-    assert arm.no_progress == 262
+    assert arm.no_progress == initial_streak + 262
+    if initial_streak:
+        assert arm.status == "BUDGET_STALLED"
+        terminal = [e for e in new if e.event_type == "CELL_TERMINAL_STATUS_COMMITTED"]
+        assert len(terminal) == 1 and "pending_step" not in terminal[0].payload
+        head = arm.journal.events()[-1].event_hash
+        assert arm.step() is False
+        assert arm.journal.events()[-1].event_hash == head
+        return
     # At the common cutoff, finish no further proposal or random call. The
     # interrupted source transition remains pending instead of being invented.
     arm.no_progress = 65535

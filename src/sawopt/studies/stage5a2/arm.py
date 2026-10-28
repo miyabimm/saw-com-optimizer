@@ -273,6 +273,8 @@ class ArmSession:
             return False  # transition already committed the pending-step stop
         if self.cell.role == "controlled_de" and self.backend.status != "SEARCHING":
             self.status = self.backend.status
+        if self.no_progress >= 65536:
+            self.status = "BUDGET_STALLED"
         if self.backend.unique_evaluations == 4096:
             self.status = "SEARCH_BUDGET_REACHED"
         if self.status != "SEARCHING":
