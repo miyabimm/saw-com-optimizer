@@ -7,6 +7,7 @@ import pytest
 from sawopt.studies.stage5a2.arm import ArmSession
 from sawopt.studies.stage5a2.codec import encode_typed
 from sawopt.studies.stage5a2.journal import JournalError, SQLiteJournal
+from sawopt.studies.stage5a2.initialization import canonical_key_tokens
 from sawopt.studies.stage5a2.live_state import snapshot
 from sawopt.studies.stage5a2.pair import prepare_pair
 from .q1bc_fixture import fixture, candidate
@@ -165,6 +166,42 @@ def test_pending_rng_call_restarts_from_durable_pre_state(initialized_pair, afte
     assert sum(e.event_type == "RNG_DRAW_STARTED" and e.event_id == starts[0].event_id for e in events) == 1
     assert sum(e.event_type == "RNG_DRAW_COMMITTED" and e.payload["call_id"] == starts[0].payload["call_id"] for e in events) == 1
     assert resumed[1].backend.unique_evaluations == len(resumed[1].trace) == 235
+
+
+def test_hash_valid_snapshot_fe_mismatch_fails_before_hydration(initialized_pair, monkeypatch):
+    metadata, pair, genesis, _, _, arms = initialized_pair
+    arm = arms[1]
+    arm.backend.unique_evaluations = 235  # forged post-state; ledger still has 234
+    forged = snapshot(arm.backend)
+    arm._event("step:0", "OPTIMIZER_STEP_STARTED", {"state": forged, "rng_ordinal": 0, "no_progress": 0})
+    arm._event("step:0", "OPTIMIZER_STEP_COMMITTED", {"state": forged, "rng_ordinal": 0, "no_progress": 0})
+    monkeypatch.setattr("sawopt.studies.stage5a2.arm.restore",
+                        lambda *args: pytest.fail("hydration before ledger validation"))
+    with pytest.raises(ValueError, match="FE.*ledger"):
+        prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
+                     geometry_valid=lambda v: pytest.fail("sampler reentered"),
+                     evaluators=(lambda *args: pytest.fail("evaluator dispatched"),) * 2)
+
+
+def test_hash_valid_result_rank_mismatch_fails_before_hydration(initialized_pair, monkeypatch):
+    metadata, pair, genesis, _, _, arms = initialized_pair
+    arm = arms[1]
+    physical = arm.backend.population[0].physical.copy()
+    physical[0] += 0.001
+    key = canonical_key_tokens(physical)
+    result = candidate(physical, 235, pair=pair)
+    arm._event("forged", "EVALUATION_RESULT_COMMITTED", {
+        "key": key, "physical": physical, "ordinal": 235, "step_id": "step:0",
+        "proposal_index": 0, "result": result, "status": "PHYSICS_EVALUATED",
+        "rank": (9.,) * 7, "best_rank": arm.best_rank, "best_key": arm.best_key,
+        "pending_target": None,
+    })
+    monkeypatch.setattr("sawopt.studies.stage5a2.arm.restore",
+                        lambda *args: pytest.fail("hydration before rank validation"))
+    with pytest.raises(ValueError, match="rank.*ledger"):
+        prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
+                     geometry_valid=lambda v: pytest.fail("sampler reentered"),
+                     evaluators=(lambda *args: pytest.fail("evaluator dispatched"),) * 2)
 
 
 def test_corrupt_arm_journal_fails_before_recovery_evaluator(initialized_pair):

@@ -16,7 +16,7 @@ from sawopt.optimization.selection import GeometryFirstComparator
 from .candidates import InvalidCandidate, validate_candidate
 from .codec import encode_typed
 from .initialization import canonical_key_tokens
-from .live_state import restore, snapshot
+from .live_state import inspect_snapshot, restore, snapshot
 from .rng import RNGCallIdentity, RNGCallService
 
 
@@ -90,16 +90,46 @@ class ArmSession:
         self.expected_initial_inputs = None
         self.status = "NOT_INITIALIZED"
         self.rng.before_draw = self._before_draw
+        durable_keys = set()
+        rng_commits = 0
+        rng_state = self.rng.service.initial_state
+        invalid_seen = False
         for event in journal.events():
-            if event.event_type == "EVALUATION_RESULT_COMMITTED":
+            if event.event_type == "RNG_DRAW_COMMITTED":
+                rng_commits += 1
+                rng_state = event.payload["post_state"]
+            elif event.event_type in {"OPTIMIZER_STEP_STARTED", "OPTIMIZER_STEP_COMMITTED"}:
+                state, state_rng = inspect_snapshot(backend, event.payload["state"])
+                if state["unique_evaluations"] != len(durable_keys):
+                    raise ValueError("optimizer snapshot FE differs from journal prefix ledger")
+                cache = state["_cache_frequency_versions"] if cell.role == "lshade" else state["cache"]
+                if {canonical_key_tokens(key) for key in cache} != durable_keys:
+                    raise ValueError("optimizer snapshot cache differs from journal prefix ledger")
+                if event.payload["rng_ordinal"] != rng_commits or state_rng != rng_state:
+                    raise ValueError("optimizer snapshot RNG differs from journal prefix tape")
+            elif event.event_type == "EVALUATION_RESULT_COMMITTED":
                 payload = event.payload
-                if payload["key"] in self.results or payload["ordinal"] != len(self.trace) + 1:
-                    raise ValueError("duplicate/gapped durable FE ledger")
+                if (invalid_seen or payload["key"] in self.results
+                        or payload["ordinal"] != len(self.trace) + 1
+                        or canonical_key_tokens(payload["physical"]) != payload["key"]):
+                    raise ValueError("invalid, duplicate or gapped durable FE ledger")
+                if payload["status"] == "INVALID_RECORD":
+                    invalid_seen = True
+                    if payload["rank"] is not None:
+                        raise ValueError("invalid result has rank in FE ledger")
+                else:
+                    validate_candidate(payload["result"], vector=payload["physical"], ordinal=payload["ordinal"],
+                                       topology=pair.topology, grid_sha256=pair.grid_sha256)
+                    rank = GeometryFirstComparator().rank_key(payload["result"])
+                    if payload["status"] != payload["result"]["evaluation_status"] or payload["rank"] != rank:
+                        raise ValueError("result rank/status differs from FE ledger")
+                    if self.best_rank is None or rank < self.best_rank:
+                        self.best_rank, self.best_key = rank, payload["key"]
+                if payload["best_rank"] != self.best_rank or payload["best_key"] != self.best_key:
+                    raise ValueError("best rank/key differs from FE ledger")
                 self.results[payload["key"]] = payload
+                durable_keys.add(payload["key"])
                 self.trace.append(payload)
-                if payload["rank"] is not None:
-                    self.best_rank = payload["best_rank"]
-                    self.best_key = payload["best_key"]
             elif event.event_type == "EVALUATOR_ATTEMPT_STARTED":
                 self.attempts[event.payload["key"]] = event.payload["attempt"] + 1
 

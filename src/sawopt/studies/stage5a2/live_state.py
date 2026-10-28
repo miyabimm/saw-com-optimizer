@@ -98,7 +98,8 @@ def snapshot(backend):
     })
 
 
-def restore(backend, payload):
+def inspect_snapshot(backend, payload):
+    """Validate an identity-bound snapshot without mutating the backend."""
     envelope = decode_typed(payload)
     if set(envelope) != {"schema", "fields", "rng"} or envelope["schema"] != f"stage5a2_{backend.name}_state_v1":
         raise ValueError("not a Q1 live snapshot (historical v4/null payloads forbidden)")
@@ -114,6 +115,13 @@ def restore(backend, payload):
             raise ValueError(f"live-state identity mismatch: {name}")
     _validate_state(state)
     _pack(state)  # reject NaN/-Inf even for a hand-crafted typed envelope
+    validator = np.random.Generator(np.random.PCG64())
+    restore_pcg64_state(validator, envelope["rng"])
+    return state, envelope["rng"]
+
+
+def restore(backend, payload):
+    state, rng_state = inspect_snapshot(backend, payload)
     generator = backend.rng.generator if hasattr(backend.rng, "generator") else backend.rng
-    restore_pcg64_state(generator, envelope["rng"])
+    restore_pcg64_state(generator, rng_state)
     vars(backend).update(state)
