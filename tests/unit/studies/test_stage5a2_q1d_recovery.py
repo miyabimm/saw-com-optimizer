@@ -1,11 +1,12 @@
 """Representative fresh-session synthetic recovery checks (not gate closure)."""
+import sqlite3
 from types import SimpleNamespace
 
 import pytest
 
 from sawopt.studies.stage5a2.arm import ArmSession
 from sawopt.studies.stage5a2.codec import encode_typed
-from sawopt.studies.stage5a2.journal import SQLiteJournal
+from sawopt.studies.stage5a2.journal import JournalError, SQLiteJournal
 from sawopt.studies.stage5a2.live_state import snapshot
 from sawopt.studies.stage5a2.pair import prepare_pair
 from .q1bc_fixture import fixture, candidate
@@ -119,3 +120,72 @@ def test_recovery_seals_terminal_after_step_commit_before_status(tmp_path, monke
     assert arm.rng.ordinal == 7 and arm.backend.unique_evaluations == 4096
     arm.hydrate_committed_steps()
     assert len([e for e in journal.events() if e.event_type == "CELL_TERMINAL_STATUS_COMMITTED"]) == 1
+
+
+def test_pending_evaluator_retry_in_new_session_is_not_a_physics_failure(tmp_path):
+    metadata, pair, genesis, _ = fixture(tmp_path)
+    calls = []
+    def evaluator(v, ordinal):
+        calls.append((ordinal, v.tobytes()))
+        if ordinal == 235 and sum(o == 235 for o, _ in calls) == 1:
+            raise RuntimeError("infrastructure interruption")
+        return candidate(v, ordinal, pair=pair)
+    def open_pair():
+        return prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
+                            geometry_valid=lambda v: True, evaluators=(evaluator, evaluator))
+    _, arms = open_pair()
+    with pytest.raises(RuntimeError, match="infrastructure interruption"):
+        arms[1].step()
+    assert len(arms[1].trace) == 234
+    _, arms = open_pair()
+    assert arms[1].step()
+    retries = [row for row in calls if row[0] == 235]
+    assert len(retries) == 2 and retries[0] == retries[1]
+    assert len(arms[1].trace) == arms[1].backend.unique_evaluations == 235
+    assert arms[1].trace[-1]["status"] == "PHYSICS_EVALUATED"
+    events = arms[1].journal.events()
+    assert sum(e.event_type == "INFRASTRUCTURE_INTERRUPTED" for e in events) == 1
+    assert sum(e.event_type == "EVALUATOR_ATTEMPT_STARTED" for e in events) == 236
+
+
+@pytest.mark.parametrize("after_draw", [False, True])
+def test_pending_rng_call_restarts_from_durable_pre_state(tmp_path, after_draw):
+    metadata, pair, genesis, _ = fixture(tmp_path)
+    evaluator = lambda v, o: candidate(v, o, pair=pair)
+    def open_pair():
+        return prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
+                            geometry_valid=lambda v: True, evaluators=(evaluator, evaluator))
+    _, arms = open_pair()
+    arm = arms[1]
+    invoke = arm.rng.service._invoke
+    def crash(method, args, kwargs):
+        if after_draw:
+            invoke(method, args, kwargs)
+        raise RuntimeError("RNG call interrupted")
+    arm.rng.service._invoke = crash
+    with pytest.raises(RuntimeError, match="RNG call interrupted"):
+        arm.step()
+    events = arm.journal.events()
+    starts = [e for e in events if e.event_type == "RNG_DRAW_STARTED"]
+    assert len(starts) == 1
+    assert not any(e.event_type == "RNG_DRAW_COMMITTED" for e in events)
+    _, resumed = open_pair()
+    assert resumed[1].step()
+    events = resumed[1].journal.events()
+    assert sum(e.event_type == "RNG_DRAW_STARTED" and e.event_id == starts[0].event_id for e in events) == 1
+    assert sum(e.event_type == "RNG_DRAW_COMMITTED" and e.payload["call_id"] == starts[0].payload["call_id"] for e in events) == 1
+    assert resumed[1].backend.unique_evaluations == len(resumed[1].trace) == 235
+
+
+def test_corrupt_arm_journal_fails_before_recovery_evaluator(tmp_path):
+    metadata, pair, genesis, _ = fixture(tmp_path)
+    evaluator = lambda v, o: candidate(v, o, pair=pair)
+    prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
+                 geometry_valid=lambda v: True, evaluators=(evaluator, evaluator))
+    with sqlite3.connect(genesis.cell_paths[1]) as connection:
+        connection.execute("UPDATE events SET payload=? WHERE sequence=1", (b"corrupt",))
+    def forbidden(*args):
+        pytest.fail("evaluation must not occur on a corrupted journal")
+    with pytest.raises(JournalError):
+        prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
+                     geometry_valid=forbidden, evaluators=(forbidden, forbidden))
