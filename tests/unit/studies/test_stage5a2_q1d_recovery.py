@@ -1,5 +1,6 @@
 """Representative fresh-session synthetic recovery checks (not gate closure)."""
 import sqlite3
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
@@ -8,6 +9,7 @@ from sawopt.studies.stage5a2.arm import ArmSession
 from sawopt.studies.stage5a2.codec import encode_typed
 from sawopt.studies.stage5a2.journal import JournalError, SQLiteJournal
 from sawopt.studies.stage5a2.initialization import canonical_key_tokens
+from sawopt.studies.stage5a2.identity import GenesisError
 from sawopt.studies.stage5a2.live_state import snapshot
 from sawopt.studies.stage5a2.pair import prepare_pair
 from .q1bc_fixture import fixture, candidate
@@ -166,6 +168,41 @@ def test_pending_rng_call_restarts_from_durable_pre_state(initialized_pair, afte
     assert sum(e.event_type == "RNG_DRAW_STARTED" and e.event_id == starts[0].event_id for e in events) == 1
     assert sum(e.event_type == "RNG_DRAW_COMMITTED" and e.payload["call_id"] == starts[0].payload["call_id"] for e in events) == 1
     assert resumed[1].backend.unique_evaluations == len(resumed[1].trace) == 235
+
+
+def test_proposal_before_intent_resumes_without_redrawing(initialized_pair, monkeypatch):
+    metadata, pair, genesis, _, _, arms = initialized_pair
+    arm = arms[1]
+    original = arm._event
+    def crash(suffix, kind, payload):
+        if kind == "EVALUATION_INTENT":
+            raise RuntimeError("crash before intent")
+        return original(suffix, kind, payload)
+    arm._event = crash
+    with pytest.raises(RuntimeError, match="crash before intent"):
+        arm.step()
+    events = arm.journal.events()
+    proposal = [event for event in events if event.event_type == "PROPOSAL_ATTEMPT"][-1]
+    assert len(arm.trace) == 234
+    evaluate = lambda v, o: candidate(v, o, pair=pair)
+    _, resumed = prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
+                              geometry_valid=lambda v: True, evaluators=(evaluate, evaluate))
+    monkeypatch.setattr(resumed[1].rng.service, "_invoke", lambda *args: pytest.fail("committed RNG redrawn"))
+    assert resumed[1].step()
+    intents = [event for event in resumed[1].journal.events() if event.event_type == "EVALUATION_INTENT"]
+    assert intents[-1].payload["physical"].tobytes() == proposal.payload["physical"].tobytes()
+    assert len(resumed[1].trace) == resumed[1].backend.unique_evaluations == 235
+
+
+def test_foreign_pair_identity_fails_before_hydration(initialized_pair, monkeypatch):
+    metadata, pair, genesis, _, _, _ = initialized_pair
+    foreign = replace(pair, config_sha256="f" * 64)
+    monkeypatch.setattr("sawopt.studies.stage5a2.arm.restore",
+                        lambda *args: pytest.fail("hydration with foreign identity"))
+    with pytest.raises(GenesisError, match="identity|roster"):
+        prepare_pair(pair=foreign, genesis=genesis, metadata=metadata,
+                     geometry_valid=lambda v: pytest.fail("sampler reentered"),
+                     evaluators=(lambda *args: pytest.fail("evaluator dispatched"),) * 2)
 
 
 def test_hash_valid_snapshot_fe_mismatch_fails_before_hydration(initialized_pair, monkeypatch):

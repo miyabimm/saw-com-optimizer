@@ -16,6 +16,8 @@ representative local checks, not the required full Q1-D matrix.
 | Uninterrupted vs fresh session, both arms | Match ordered logical RNG and proposal events, physical evaluator inputs, result/trace and optimizer state, rank/best/top-16. | Starting from the same isolated committed SQLite initialization prefix, two search steps match exact typed event bytes, complete live-state snapshot, trace and top-16; 236 FE. The crash is before the second step commit, after its result. |
 | RNG STARTED / lost NumPy return | Pending call is regenerated from its pre-state under the same ID. | DE synthetic fixture interrupts before and after physical RNG invocation; one START and one COMMIT for the logical call on new-session replay. |
 | Evaluator interruption | No FE until result; a repeated physical attempt is not a modeled physics failure. | DE fixture records two identical physical attempts, one infrastructure interruption and one committed 235th result/FE. |
+| Proposal committed before intent | Generate the same intent without redrawing committed RNG. | DE fresh-session fixture reproduces the proposal's physical bits, does not invoke the RNG and commits one FE. |
+| Foreign pair identity | Fail before hydration/evaluation. | Altered config identity is rejected at genesis reconciliation. |
 | Journal corruption | Fail before evaluator dispatch. | A modified event payload is rejected on journal reopen before geometry/evaluator call. |
 | Hash-valid inconsistent snapshot/result | Check identity, FE/cache/RNG prefix and result rank/best before hydration. | A post-state with an extra FE and a separate forged result rank are rejected before either arm hydrates or evaluates. Snapshot START/COMMIT states are checked against the preceding journal result/cache and RNG prefixes; result rows are schema/rank/best checked on reload. |
 | 4096-FE step commit before terminal event | Restore without rerunning and seal one search-only terminal status. | Minimal mocked-state SQLite transition fixture verifies one durable terminal event, no extra state/FE/RNG; this is not a 4096-FE trajectory test. |
@@ -53,7 +55,8 @@ tests `test_uninterrupted_and_fresh_session_scientific_trajectory_match` (2),
 At exact HEAD `638ca1a72605878ab65c2f1a5b67f3ebe514f70b`, GitHub Actions
 run 40722256267 passed the full suite (623 passed) and fixed-input COM regression;
 new changes require their own exact-HEAD CI. After adding prefix validation,
-the focused Q1-BC/D files passed locally: 34 tests in 607.20 s. Python 3.12.3, NumPy 2.5.3,
+the focused Q1-BC/D files passed locally: 34 tests in 607.20 s. Two later
+focused proposal/identity tests passed in 68.32 s. Python 3.12.3, NumPy 2.5.3,
 Ubuntu 24.04.5 / WSL2 x86_64; `uv.lock` SHA-256
 `5dfd4435726518e40d5991fadc5af4099725cc0763af932e1f9015066aa1f0ff`,
 fixture SHA-256 `e3bea6f09c05d28a61afc53ccab979dc42275d1de59a58182b45331f9569861c`.
