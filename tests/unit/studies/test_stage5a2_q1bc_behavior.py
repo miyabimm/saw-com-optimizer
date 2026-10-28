@@ -91,14 +91,6 @@ def test_de_aggregate_watchdog_before_extra_draw(monkeypatch):
     assert len(calls) == 1 and backend.unique_evaluations == 234
 
 
-def _pair(tmp_path, evaluator=None):
-    metadata, pair, genesis, canonicalize = fixture(tmp_path)
-    evaluator = evaluator or (lambda v, o: candidate(v, o, pair=pair))
-    seal, arms = prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
-                              geometry_valid=lambda v: True, evaluators=(evaluator, evaluator))
-    return metadata, pair, genesis, canonicalize, seal, arms
-
-
 def test_actual_234_member_boundary_two_certificates_before_fe_and_private_ledgers(tmp_path):
     metadata, pair, genesis, canonicalize = fixture(tmp_path)
     calls = [[], []]
@@ -126,7 +118,7 @@ def test_actual_234_member_boundary_two_certificates_before_fe_and_private_ledge
     loaded_seal, resumed = prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
                                         geometry_valid=forbidden, evaluators=(forbidden, forbidden))
     assert loaded_seal == seal
-    resumed[0].step()
+    assert resumed[0].step_index == 1
     assert len(resumed[0].trace) == resumed[0].backend.unique_evaluations == 235
 
 
@@ -145,8 +137,8 @@ def test_pair_actual_preflight_mismatch_stops_both_before_any_fe(tmp_path, monke
     assert not calls
 
 
-def test_lshade_hooked_unhooked_bitwise_parity_and_frozen_settings(tmp_path):
-    metadata, pair, _, canonicalize, seal, arms = _pair(tmp_path)
+def test_lshade_hooked_unhooked_bitwise_parity_and_frozen_settings(initialized_pair):
+    metadata, pair, _, canonicalize, seal, arms = initialized_pair
     hooked = arms[0]
     seed = hooked.rng.service.synthetic_test_seed
     baseline = LShadeBackend(metadata.bounds_array(), seed=seed, config=LSHADE_CONFIG,
@@ -169,8 +161,8 @@ def test_lshade_hooked_unhooked_bitwise_parity_and_frozen_settings(tmp_path):
         restore(foreign, snapshot(baseline))
 
 
-def test_lossless_live_roundtrip_infinity_and_no_v4_serializer(tmp_path, monkeypatch):
-    _, pair, _, _, _, arms = _pair(tmp_path)
+def test_lossless_live_roundtrip_infinity_and_no_v4_serializer(initialized_pair, monkeypatch):
+    _, pair, _, _, _, arms = initialized_pair
     backend = arms[0].backend
     backend._population[0].result = candidate(backend._population[0].physical, 1, pair=pair, status="PHYSICS_FAILED")
     backend._history_rank_index[backend._population[0].key] = (GeometryFirstComparator().rank_key(backend._population[0].result), tuple(backend._population[0].physical), 0)
@@ -189,8 +181,8 @@ def test_lossless_live_roundtrip_infinity_and_no_v4_serializer(tmp_path, monkeyp
 
 
 @pytest.mark.parametrize("role", [0, 1])
-def test_pre_step_result_before_update_replay_does_not_recommit_fe_or_redraw(tmp_path, monkeypatch, role):
-    _, _, _, _, _, arms = _pair(tmp_path)
+def test_pre_step_result_before_update_replay_does_not_recommit_fe_or_redraw(initialized_pair, monkeypatch, role):
+    _, _, _, _, _, arms = initialized_pair
     arm = arms[role]
     original = arm._event
     def crash(suffix, kind, payload):
@@ -246,8 +238,8 @@ def test_pre_step_result_before_update_replay_does_not_recommit_fe_or_redraw(tmp
 
 
 @pytest.mark.parametrize("initial_streak", [0, 65536 - 262])
-def test_lshade_six_normal_attempts_one_256_candidate_fallback_first_none_zero_fe(tmp_path, initial_streak):
-    _, _, _, _, _, arms = _pair(tmp_path)
+def test_lshade_six_normal_attempts_one_256_candidate_fallback_first_none_zero_fe(initialized_pair, initial_streak):
+    _, _, _, _, _, arms = initialized_pair
     arm = arms[0]
     backend = arm.backend
     original_canonicalizer = backend.canonicalizer
@@ -286,8 +278,8 @@ def test_lshade_six_normal_attempts_one_256_candidate_fallback_first_none_zero_f
 
 
 @pytest.mark.parametrize("status", ["GEOMETRY_REJECTED", "PHYSICS_FAILED"])
-def test_search_reject_or_modeled_failure_charges_one_fe_no_duplicate_retry(tmp_path, status):
-    _, pair, _, _, _, arms = _pair(tmp_path)
+def test_search_reject_or_modeled_failure_charges_one_fe_no_duplicate_retry(initialized_pair, status):
+    _, pair, _, _, _, arms = initialized_pair
     for arm in arms:
         arm.evaluator = lambda v, o: candidate(v, o, pair=pair, status=status)
         arm.step()
@@ -296,8 +288,8 @@ def test_search_reject_or_modeled_failure_charges_one_fe_no_duplicate_retry(tmp_
         assert arm.trace[-1]["rank"] == GeometryFirstComparator().rank_key(arm.trace[-1]["result"])
 
 
-def test_invalid_record_counted_quarantined_not_ranked_and_infrastructure_not_failed(tmp_path):
-    _, _, _, _, _, arms = _pair(tmp_path)
+def test_invalid_record_counted_quarantined_not_ranked_and_infrastructure_not_failed(initialized_pair):
+    _, _, _, _, _, arms = initialized_pair
     arm = arms[0]
     arm.evaluator = lambda v, o: {"evaluation_status": "UNKNOWN"}
     with pytest.raises(InvalidRecord):

@@ -17,18 +17,22 @@ _EXCLUDED = {"evaluator", "canonicalizer", "comparator", "rng", "observe", "_q1_
 _MEMBERS = {"lshade_member": _PopulationMember, "de_member": DEMember}
 
 
-def _pack(value):
+def _pack(value, canonical_record=False):
     if is_dataclass(value):
         tag = "lshade_member" if type(value) is _PopulationMember else "de_member"
         if type(value) not in _MEMBERS.values():
             raise ValueError("unsupported live-state dataclass")
         return (tag, {f.name: _pack(getattr(value, f.name)) for f in fields(value)})
     if isinstance(value, dict):
-        return ("mapping", [(_pack(k), _pack(v)) for k, v in value.items()])
+        canonical_record = canonical_record or value.get("schema_id") == "stage5a2_candidate_record_v1"
+        items = value.items()
+        if canonical_record and all(isinstance(key, str) for key in value):
+            items = sorted(items)
+        return ("mapping", [(_pack(k, canonical_record), _pack(v, canonical_record)) for k, v in items])
     if isinstance(value, list):
-        return ("list", [_pack(v) for v in value])
+        return ("list", [_pack(v, canonical_record) for v in value])
     if isinstance(value, tuple):
-        return ("tuple", [_pack(v) for v in value])
+        return ("tuple", [_pack(v, canonical_record) for v in value])
     if isinstance(value, (float, np.floating)) and (math.isnan(value) or value == -math.inf):
         raise ValueError("NaN/-Inf is not scientific live state")
     if isinstance(value, np.ndarray) and np.issubdtype(value.dtype, np.floating):
@@ -94,7 +98,8 @@ def snapshot(backend):
     })
 
 
-def restore(backend, payload):
+def inspect_snapshot(backend, payload):
+    """Validate an identity-bound snapshot without mutating the backend."""
     envelope = decode_typed(payload)
     if set(envelope) != {"schema", "fields", "rng"} or envelope["schema"] != f"stage5a2_{backend.name}_state_v1":
         raise ValueError("not a Q1 live snapshot (historical v4/null payloads forbidden)")
@@ -110,6 +115,13 @@ def restore(backend, payload):
             raise ValueError(f"live-state identity mismatch: {name}")
     _validate_state(state)
     _pack(state)  # reject NaN/-Inf even for a hand-crafted typed envelope
+    validator = np.random.Generator(np.random.PCG64())
+    restore_pcg64_state(validator, envelope["rng"])
+    return state, envelope["rng"]
+
+
+def restore(backend, payload):
+    state, rng_state = inspect_snapshot(backend, payload)
     generator = backend.rng.generator if hasattr(backend.rng, "generator") else backend.rng
-    restore_pcg64_state(generator, envelope["rng"])
+    restore_pcg64_state(generator, rng_state)
     vars(backend).update(state)

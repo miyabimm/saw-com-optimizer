@@ -150,4 +150,5 @@ def prepare_pair(*, pair, genesis, metadata, geometry_valid, evaluators):
         arm.expected_initial_inputs = tuple(member.sealed_physical_le_f64 for member in seal.members)
         raw = np.asarray(population)
         arm.transition(lambda arm=arm, raw=raw: arm.backend.initialize(arm.evaluate, population=raw))
+        arm.hydrate_committed_steps()
     return seal, arms
