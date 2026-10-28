@@ -30,8 +30,12 @@ map must have independent filter re-optimization and validation. A fixed-design
 termination sweep is a diagnostic only.
 
 Current gates: Q0 is `CLOSED / ACCEPTED`; Q1-A is `WORK_UNIT_READY / CLOSED`;
-all Q1-01…Q1-23 gates remain unpassed; Q1-B/C/D/E are
-`NOT AUTHORIZED / NOT STARTED`. Q1 permission, if separately granted, would
+all Q1-01…Q1-23 gates remain unpassed. The owner separately authorized Issue
+#167's integrated Q1-B/C implementation and deterministic COM-free synthetic
+unit/integration verification after scope confirmation. B/C is
+`IMPLEMENTED / LOCAL_REVIEW_PENDING`; Q1-D/E remain
+`NOT AUTHORIZED / NOT STARTED`. This permits neither official gate closure
+nor the Q1-E 12-cell matrix or scientific/production execution. Q1 permission, if separately granted, would
 cover only deterministic synthetic software qualification and never COM,
 physics, actual SAW optimization, or production. See the sole formal
 [Q1 matrix](plans/stage5a2_q1_qualification_matrix.md) and

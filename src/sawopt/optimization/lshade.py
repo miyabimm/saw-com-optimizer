@@ -283,6 +283,12 @@ class LShadeBackend(OptimizerBackend):
             raise ValueError("canonicalizer returned a design outside immutable hard bounds")
         return canonical, tuple(key)
 
+    def _observe_q1(self, event, **data):
+        """Inert opt-in observation; no arithmetic/state/RNG changes when absent."""
+        observer = getattr(self, "_q1_observer", None)
+        if observer is not None:
+            observer(event, data)
+
     def _evaluate(self, x: np.ndarray):
         self.proposals_total += 1
         canonical, key = self._canonical(x)
@@ -334,6 +340,7 @@ class LShadeBackend(OptimizerBackend):
                 continue
             self._population.append(member)
             seen.add(member.key)
+            self._observe_q1("initial_member", index=len(self._population) - 1)
         if len(self._population) < self.minimum_population_size:
             raise ValueError("initial population does not contain enough canonical designs")
         self.initial_population_size = len(self._population)
@@ -554,9 +561,13 @@ class LShadeBackend(OptimizerBackend):
                 _canonical, key = self._canonical(self._normalize(physical))
                 if key not in seen:
                     return self._normalize(physical)
+        self._observe_q1("fallback_invoked")
         for _ in range(256):
+            self._observe_q1("before_proposal", phase="fallback", attempt=_)
             proposal = self.rng.uniform(0.0, 1.0, self.dimension)
             _canonical, key = self._canonical(proposal)
+            self._observe_q1("proposal", phase="fallback", attempt=_, x=proposal,
+                             physical=_canonical, key=key, duplicate=key in seen)
             if key not in seen:
                 return proposal
         return None
@@ -610,6 +621,7 @@ class LShadeBackend(OptimizerBackend):
             return False
         target_index = int(self.generations % len(self._population))
         target = self._population[target_index]
+        self._observe_q1("parameters", target=target_index)
         memory_index = int(self.rng.integers(0, self.history_size))
         f, cr = self._sample_parameters(memory_index)
         pbest_count = max(2, int(np.ceil(self.pbest_max_fraction * len(self._population))))
@@ -623,6 +635,7 @@ class LShadeBackend(OptimizerBackend):
                     self._check_search_space_exhausted()
                     break
             else:
+                self._observe_q1("before_proposal", phase="normal", attempt=_attempt)
                 pbest, r1, r2 = self._sample_indices(target_index, pbest_count)
                 mutant = target.x + f * (self._population[pbest].x - target.x) + f * (self._population[r1].x - r2)
                 mutant = self._repair_boundary(mutant, target.x)
@@ -630,6 +643,13 @@ class LShadeBackend(OptimizerBackend):
                 mask = self.rng.random(self.dimension) < cr
                 mask[forced] = True
                 trial = np.where(mask, mutant, target.x)
+                # Canonicalization is pure; opt-in only, and the evaluator still
+                # runs its original path below. No returned value is substituted.
+                if getattr(self, "_q1_observer", None) is not None:
+                    observed_physical, observed_key = self._canonical(trial)
+                    self._observe_q1("proposal", phase="normal", attempt=_attempt, x=trial,
+                                     physical=observed_physical, key=observed_key,
+                                     duplicate=observed_key in self._cache_frequency_versions)
             self.raw_offspring_count += 1
             candidate, key, result, cached = self._evaluate(trial)
             duplicate = bool(cached or key == target.key

@@ -159,5 +159,9 @@ replaced in verification by the canonical `design.space` API, with the leaf
 also checked directly. The explicit contract disposition and owner decision
 boundary are in
 [Q1 contract disposition](plans/restructure_q1_contract_disposition_20261022.md).
-Do not begin Q1-B/C/D/E or claim the existing foundation is generally
-production-qualified.
+Issue #167 separately owner-authorizes the integrated B/C implementation and
+bounded deterministic COM-free synthetic verification. Current additions are
+`optimization/controlled_de.py` and study-scoped `stage5a2/{pair,arm,candidates,live_state}.py`,
+with inert opt-in observations in `optimization/lshade.py`. They are
+`IMPLEMENTED / LOCAL_REVIEW_PENDING`, not formal Q1 qualification. Do not begin
+Q1-D/E or claim the foundation/integration is generally production-qualified.
