@@ -17,18 +17,22 @@ _EXCLUDED = {"evaluator", "canonicalizer", "comparator", "rng", "observe", "_q1_
 _MEMBERS = {"lshade_member": _PopulationMember, "de_member": DEMember}
 
 
-def _pack(value):
+def _pack(value, canonical_record=False):
     if is_dataclass(value):
         tag = "lshade_member" if type(value) is _PopulationMember else "de_member"
         if type(value) not in _MEMBERS.values():
             raise ValueError("unsupported live-state dataclass")
         return (tag, {f.name: _pack(getattr(value, f.name)) for f in fields(value)})
     if isinstance(value, dict):
-        return ("mapping", [(_pack(k), _pack(v)) for k, v in value.items()])
+        canonical_record = canonical_record or value.get("schema_id") == "stage5a2_candidate_record_v1"
+        items = value.items()
+        if canonical_record and all(isinstance(key, str) for key in value):
+            items = sorted(items)
+        return ("mapping", [(_pack(k, canonical_record), _pack(v, canonical_record)) for k, v in items])
     if isinstance(value, list):
-        return ("list", [_pack(v) for v in value])
+        return ("list", [_pack(v, canonical_record) for v in value])
     if isinstance(value, tuple):
-        return ("tuple", [_pack(v) for v in value])
+        return ("tuple", [_pack(v, canonical_record) for v in value])
     if isinstance(value, (float, np.floating)) and (math.isnan(value) or value == -math.inf):
         raise ValueError("NaN/-Inf is not scientific live state")
     if isinstance(value, np.ndarray) and np.issubdtype(value.dtype, np.floating):

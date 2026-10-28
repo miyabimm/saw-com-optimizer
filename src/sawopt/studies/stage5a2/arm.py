@@ -261,6 +261,33 @@ class ArmSession:
             self.status = "SEARCHING"
         return True
 
+    def hydrate_committed_steps(self):
+        """Restore the contiguous durable post-initialization step prefix.
+
+        A pending step is deliberately left for source-control-flow replay.
+        """
+        if self.initializing:
+            raise ValueError("initialization must be restored first")
+        events = self.journal.events()
+        commits = [event for event in events if event.event_type == "OPTIMIZER_STEP_COMMITTED"
+                   and event.event_id != f"OPTIMIZER_STEP_COMMITTED:{self.cell.identity_id}:initialization"]
+        for index, event in enumerate(commits):
+            step_id = f"step:{index}"
+            if event.event_id != f"OPTIMIZER_STEP_COMMITTED:{self.cell.identity_id}:{step_id}":
+                raise ValueError("noncontiguous optimizer step commits")
+            if self.journal.get_event(f"OPTIMIZER_STEP_STARTED:{self.cell.identity_id}:{step_id}") is None:
+                raise ValueError("optimizer step commit has no pre-state")
+        if commits:
+            payload = commits[-1].payload
+            restore(self.backend, payload["state"])
+            self.rng.ordinal = payload["rng_ordinal"]
+            self.no_progress = payload["no_progress"]
+            self.step_index = len(commits)
+        terminals = [event.payload["status"] for event in events
+                     if event.event_type == "CELL_TERMINAL_STATUS_COMMITTED"]
+        if terminals:
+            self.status = terminals[-1]
+
     def step(self):
         if self.initializing or self.status != "SEARCHING":
             return False

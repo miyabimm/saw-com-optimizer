@@ -126,7 +126,7 @@ def test_actual_234_member_boundary_two_certificates_before_fe_and_private_ledge
     loaded_seal, resumed = prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
                                         geometry_valid=forbidden, evaluators=(forbidden, forbidden))
     assert loaded_seal == seal
-    resumed[0].step()
+    assert resumed[0].step_index == 1
     assert len(resumed[0].trace) == resumed[0].backend.unique_evaluations == 235
 
 
