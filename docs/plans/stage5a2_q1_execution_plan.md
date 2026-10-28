@@ -63,6 +63,16 @@ All Q1 runners receive an evaluator implementation by dependency injection. The 
 
 ## 4. Proposed module ownership and protected boundaries
 
+**Issue #167 concrete ownership:** the current backend owner is `optimization/`,
+not the removed `optimizers/` package. B/C uses `optimization/controlled_de.py`,
+`studies/stage5a2/pair.py` (`prepare_pair`), `arm.py` (`ArmSession`),
+`live_state.py` (`snapshot`/`restore`) and `candidates.py`. Thus the original
+`lshade_adapter.py`/runner proposals below resolve to these smaller current
+seams; no retired study runner or old-path compatibility package is recreated.
+The unchanged comparator is `optimization.selection.GeometryFirstComparator`.
+Stage 4 source/caller names retained in the A historical evidence are Git
+references, not instructions to restore deleted runtime modules.
+
 The paths below are implementation targets. Keep Stage 5A-2 additions in a study-scoped package (recommended `src/sawopt/studies/stage5a2/`) and a dedicated controlled optimizer backend; do not repurpose Stage 4C production state or broadly modify shared numerical behavior. The shared-source extraction is a bounded candidate seam; its implementation is authorized only within Q1-A Issue #52 and remains subject to the stated parity/protection evidence. Do not move or refactor any decoder's separate rounding logic.
 
 | Module/location | Intended responsibility in Q1 | Protected boundary |

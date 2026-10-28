@@ -2,15 +2,15 @@
   "source_files_sha256": {
     "src/sawopt/optimization/lshade.py": "ada6063855d791758024b52b835492e72c6b1cb5f8d6fbfcff39c52049aec324",
     "src/sawopt/optimization/controlled_de.py": "4d45865538bcb1ead271005794531a91a92ee7abd54c3ef82d33a4eea8ffcb4b",
-    "src/sawopt/studies/stage5a2/arm.py": "0779ad7269c3595d394a03ec59a57a8cf9045a7b65d352c8a279a645f4f5125c",
+    "src/sawopt/studies/stage5a2/arm.py": "2dc1bd33273fd24a7775ac67d9e090e13ab1fd48c22a666e7c0242108ceded9b",
     "src/sawopt/studies/stage5a2/candidates.py": "16891d8231082510388a044c5114ee4a732755e33c8f425971bf02bbe6745aee",
     "src/sawopt/studies/stage5a2/live_state.py": "66b7342ca6008b13f5e6158ab614e0eb509ebba329f1410f8c249bdf55a0a0c3",
-    "src/sawopt/studies/stage5a2/pair.py": "45e7110b044f31bf593f4722c0a6e403e86485710a28df5ee7a4070f4204149d",
+    "src/sawopt/studies/stage5a2/pair.py": "e3fe909ca1234e475363e480ea2966949e3d2edb138448e13ca0d10938ae8a67",
     "tests/unit/studies/q1bc_fixture.py": "e3bea6f09c05d28a61afc53ccab979dc42275d1de59a58182b45331f9569861c",
     "tests/unit/studies/test_stage5a2_q1bc.py": "a1954460132326e9113b1f82291ed68f0a4db8888bb704f9149de66397d9c3a8",
     "tests/unit/studies/test_stage5a2_q1bc_behavior.py": "9f006ae95ccfbc1d6640f60c8d728fe33e29c17a9c27acdef58fdfd85165f5a7"
   },
-  "implementation_sha256": "d52b6115b5dd8bddca40eb10b5db69d9efcff29e1ca8c074b4ed173be9a589c2",
+  "implementation_sha256": "1a63f334d988f1c2540e85b1a8fb7234925efd4e1af404155e1d59353064b86b",
   "arm_config_hashes": [
     ["lshade", "c1690bb0741774e6665b9b18ca73daeee243fd107ee53579fbe06a6196e60b71"],
     ["controlled_de", "17b5165ed8df6dc5203d29bf3c26f0a5aaeeb400ba9d26d925435b6d8da0e941"]

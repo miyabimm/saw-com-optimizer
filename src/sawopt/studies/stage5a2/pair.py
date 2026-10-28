@@ -14,8 +14,7 @@ from .arm import ArmSession
 from .codec import encode_typed
 from .identity import CellIdentity
 from .initialization import (
-    InitializationError, PopulationSeal, attach_population, canonical_key_tokens,
-    _make_member,
+    InitializationError, PopulationMember, PopulationSeal, attach_population, canonical_key_tokens,
     persist_both_preflight_certificates, preflight_controlled_de,
     preflight_lshade, require_both_preflight_certificates, sample_initial_population,
 )
@@ -53,10 +52,14 @@ def _existing_seal(journal, pair, metadata, normalize):
         if event.event_type != "SAMPLER_DRAW" or event.payload["classification"] != "accepted":
             continue
         row = event.payload["representations"]
-        arrays = [np.frombuffer(bytes.fromhex(row[name]), dtype="<f8").copy() for name in (
+        representations = [bytes.fromhex(row[name]) for name in (
             "raw_physical_le_f64", "provisional_canonical_le_f64", "lshade_input_genotype_le_f64",
             "lshade_reconstructed_le_f64", "sealed_physical_le_f64")]
-        member = _make_member(len(members), *arrays, tuple(arrays[-1]), metadata, normalize)
+        physical = np.frombuffer(representations[-1], dtype="<f8").copy()
+        member = PopulationMember(
+            len(members), *representations, tuple(row["canonical_key_f64be"]),
+            representations[-1], np.asarray(normalize(physical), dtype="<f8").tobytes(),
+        )
         members.append(member)
     result = PopulationSeal(pair.identity_id, pair.topology, metadata.design_space_sha256, tuple(members),
                             pair.sampler_version, sealed["draws"], sealed["duplicate_rejections"],

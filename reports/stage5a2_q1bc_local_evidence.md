@@ -107,6 +107,11 @@ No historical raw/config/checkpoint/report was changed. The L-SHADE v4
 serializer/loader and comparator source are unchanged. Temporary synthetic
 journals are test-owned, not a new production raw-store contract; no raw
 population, checkpoint, journal or full diagnostic output is committed here.
-Early RED intentionally failed on the missing controlled-DE module. Some
+Early RED intentionally failed on the missing controlled-DE module. The first
+CI/full iteration found a second terminal-status append after the watchdog
+had already committed the pending-step stop, and a private cross-study import
+in seal reconstruction. The former is fixed by returning from the already
+committed stop; the latter now uses A's public `PopulationMember` record.
+The exact watchdog regression and architecture checks pass after these fixes. Some
 intermediate test runs were stopped/time-limited while iterating; they are not
 counted as passes. Only completed checks listed at final handoff are evidence.

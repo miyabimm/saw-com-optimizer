@@ -269,6 +269,8 @@ class ArmSession:
             return False
         operation = (lambda: self.backend._generation(4096)) if self.cell.role == "lshade" else self.backend.step
         result = self.transition(operation)
+        if not result:
+            return False  # transition already committed the pending-step stop
         if self.cell.role == "controlled_de" and self.backend.status != "SEARCHING":
             self.status = self.backend.status
         if self.backend.unique_evaluations == 4096:
