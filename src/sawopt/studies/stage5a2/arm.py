@@ -287,6 +287,19 @@ class ArmSession:
                      if event.event_type == "CELL_TERMINAL_STATUS_COMMITTED"]
         if terminals:
             self.status = terminals[-1]
+        elif commits:
+            # A crash can occur after the optimizer commit and before the
+            # search-only terminal event. Reconcile without rerunning the step.
+            status = "SEARCHING"
+            if self.cell.role == "controlled_de" and self.backend.status != "SEARCHING":
+                status = self.backend.status
+            if self.no_progress >= 65536:
+                status = "BUDGET_STALLED"
+            if self.backend.unique_evaluations == 4096:
+                status = "SEARCH_BUDGET_REACHED"
+            if status != "SEARCHING":
+                self._event(f"step:{self.step_index - 1}", "CELL_TERMINAL_STATUS_COMMITTED", {"status": status})
+                self.status = status
 
     def step(self):
         if self.initializing or self.status != "SEARCHING":
