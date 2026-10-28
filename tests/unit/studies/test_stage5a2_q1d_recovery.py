@@ -13,13 +13,12 @@ from .q1bc_fixture import fixture, candidate
 
 
 @pytest.mark.parametrize("role", [0, 1])
-def test_new_session_hydrates_committed_steps_and_replays_pending(tmp_path, role):
-    metadata, pair, genesis, _ = fixture(tmp_path)
+def test_new_session_hydrates_committed_steps_and_replays_pending(initialized_pair, role):
+    metadata, pair, genesis, _, _, arms = initialized_pair
     evaluate = lambda v, o: candidate(v, o, pair=pair)
     def open_pair():
         return prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
                             geometry_valid=lambda v: True, evaluators=(evaluate, evaluate))
-    _, arms = open_pair()
     arm = arms[role]
     arm.step()
     original = arm._event
@@ -44,25 +43,27 @@ def test_new_session_hydrates_committed_steps_and_replays_pending(tmp_path, role
 
 
 @pytest.mark.parametrize("role", [0, 1])
-def test_uninterrupted_and_fresh_session_scientific_trajectory_match(tmp_path, role):
-    original = tmp_path / "original"
-    original.mkdir()
-    metadata, pair, genesis, _ = fixture(original)
+def test_uninterrupted_and_fresh_session_scientific_trajectory_match(initialized_pair, _q1_initialized_baseline, role):
+    metadata, pair, genesis, _, _, arms = initialized_pair
     evaluate = lambda v, o: candidate(v, o, pair=pair)
-    _, arms = prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
-                           geometry_valid=lambda v: True, evaluators=(evaluate, evaluate))
     reference = arms[role]
     assert reference.step() and reference.step()
-
-    # Independent deterministic genesis: roster locators bind each journal
-    # to its own directory, so copying a pair database would be invalid.
-    clone = tmp_path / "restart"
-    clone.mkdir()
-    _, _, restart_genesis, _ = fixture(clone)
+    kinds = {"RNG_DRAW_STARTED", "RNG_DRAW_COMMITTED", "PROPOSAL_ATTEMPT",
+             "DUPLICATE_DETECTED", "EVALUATION_INTENT", "EVALUATION_RESULT_COMMITTED"}
+    def scientific_events(arm):
+        return [(e.event_type, encode_typed(e.payload)) for e in arm.journal.events() if e.event_type in kinds]
+    def top16(arm):
+        return [(r["rank"], r["ordinal"], r["key"]) for r in
+                sorted(arm.trace, key=lambda r: (r["rank"], r["ordinal"]))[:16]]
+    expected = (scientific_events(reference), snapshot(reference.backend), encode_typed(reference.trace),
+                reference.best_rank, reference.best_key, top16(reference))
+    # Restore an isolated baseline to the same identity-bound journal paths.
+    # Capture all reference data first; no old session is used after reset.
+    _, _, _, _, _, restarted_arms = _q1_initialized_baseline()
     def open_restart():
-        return prepare_pair(pair=pair, genesis=restart_genesis, metadata=metadata,
+        return prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
                             geometry_valid=lambda v: True, evaluators=(evaluate, evaluate))[1][role]
-    interrupted = open_restart()
+    interrupted = restarted_arms[role]
     assert interrupted.step()
     event = interrupted._event
     def crash(suffix, kind, payload):
@@ -78,18 +79,8 @@ def test_uninterrupted_and_fresh_session_scientific_trajectory_match(tmp_path, r
 
     # Complete ordered logical scientific event payloads exclude physical
     # attempts and time; typed encoding compares IEEE-754 bits losslessly.
-    kinds = {"RNG_DRAW_STARTED", "RNG_DRAW_COMMITTED", "PROPOSAL_ATTEMPT",
-             "DUPLICATE_DETECTED", "EVALUATION_INTENT", "EVALUATION_RESULT_COMMITTED"}
-    def scientific_events(arm):
-        return [(e.event_type, encode_typed(e.payload)) for e in arm.journal.events() if e.event_type in kinds]
-    assert scientific_events(recovered) == scientific_events(reference)
-    assert snapshot(recovered.backend) == snapshot(reference.backend)
-    assert encode_typed(recovered.trace) == encode_typed(reference.trace)
-    assert (recovered.best_rank, recovered.best_key) == (reference.best_rank, reference.best_key)
-    def top16(arm):
-        return [(r["rank"], r["ordinal"], r["key"]) for r in
-                sorted(arm.trace, key=lambda r: (r["rank"], r["ordinal"]))[:16]]
-    assert top16(recovered) == top16(reference)
+    assert (scientific_events(recovered), snapshot(recovered.backend), encode_typed(recovered.trace),
+            recovered.best_rank, recovered.best_key, top16(recovered)) == expected
     assert len(recovered.trace) == recovered.backend.unique_evaluations == 236
 
 
@@ -122,8 +113,8 @@ def test_recovery_seals_terminal_after_step_commit_before_status(tmp_path, monke
     assert len([e for e in journal.events() if e.event_type == "CELL_TERMINAL_STATUS_COMMITTED"]) == 1
 
 
-def test_pending_evaluator_retry_in_new_session_is_not_a_physics_failure(tmp_path):
-    metadata, pair, genesis, _ = fixture(tmp_path)
+def test_pending_evaluator_retry_in_new_session_is_not_a_physics_failure(initialized_pair):
+    metadata, pair, genesis, _, _, arms = initialized_pair
     calls = []
     def evaluator(v, ordinal):
         calls.append((ordinal, v.tobytes()))
@@ -133,7 +124,7 @@ def test_pending_evaluator_retry_in_new_session_is_not_a_physics_failure(tmp_pat
     def open_pair():
         return prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
                             geometry_valid=lambda v: True, evaluators=(evaluator, evaluator))
-    _, arms = open_pair()
+    arms[1].evaluator = evaluator
     with pytest.raises(RuntimeError, match="infrastructure interruption"):
         arms[1].step()
     assert len(arms[1].trace) == 234
@@ -149,13 +140,12 @@ def test_pending_evaluator_retry_in_new_session_is_not_a_physics_failure(tmp_pat
 
 
 @pytest.mark.parametrize("after_draw", [False, True])
-def test_pending_rng_call_restarts_from_durable_pre_state(tmp_path, after_draw):
-    metadata, pair, genesis, _ = fixture(tmp_path)
+def test_pending_rng_call_restarts_from_durable_pre_state(initialized_pair, after_draw):
+    metadata, pair, genesis, _, _, arms = initialized_pair
     evaluator = lambda v, o: candidate(v, o, pair=pair)
     def open_pair():
         return prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
                             geometry_valid=lambda v: True, evaluators=(evaluator, evaluator))
-    _, arms = open_pair()
     arm = arms[1]
     invoke = arm.rng.service._invoke
     def crash(method, args, kwargs):
@@ -177,11 +167,8 @@ def test_pending_rng_call_restarts_from_durable_pre_state(tmp_path, after_draw):
     assert resumed[1].backend.unique_evaluations == len(resumed[1].trace) == 235
 
 
-def test_corrupt_arm_journal_fails_before_recovery_evaluator(tmp_path):
-    metadata, pair, genesis, _ = fixture(tmp_path)
-    evaluator = lambda v, o: candidate(v, o, pair=pair)
-    prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
-                 geometry_valid=lambda v: True, evaluators=(evaluator, evaluator))
+def test_corrupt_arm_journal_fails_before_recovery_evaluator(initialized_pair):
+    metadata, pair, genesis, _, _, _ = initialized_pair
     with sqlite3.connect(genesis.cell_paths[1]) as connection:
         connection.execute("UPDATE events SET payload=? WHERE sequence=1", (b"corrupt",))
     def forbidden(*args):

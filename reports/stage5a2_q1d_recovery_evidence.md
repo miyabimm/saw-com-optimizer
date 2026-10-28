@@ -13,7 +13,7 @@ representative local checks, not the required full Q1-D matrix.
 | New session after a committed search step | Restore the contiguous step prefix, including backend, RNG ordinal and watchdog state. | Both arms restored one committed step in the focused synthetic test. |
 | Result committed, before next optimizer-step commit | Reconstruct the transition from its pre-state with the committed RNG and result; do not dispatch another evaluator call. | Both arms reproduced the interrupted backend snapshot and 236 unique FE/trace rows in a new session. |
 | Candidate record mapping serialization | Stable snapshot bytes despite canonical journal decoding of mapping key order. | Candidate record mappings are serialized in canonical key order; cache/population ordering is not sorted. Existing same-session replay tests pass. |
-| Uninterrupted vs fresh session, both arms | Match ordered logical RNG and proposal events, physical evaluator inputs, result/trace and optimizer state, rank/best/top-16. | Independent deterministic initializations and two search steps match exact typed event bytes, complete live-state snapshot, trace and top-16; 236 FE. The crash is before the second step commit, after its result. |
+| Uninterrupted vs fresh session, both arms | Match ordered logical RNG and proposal events, physical evaluator inputs, result/trace and optimizer state, rank/best/top-16. | Starting from the same isolated committed SQLite initialization prefix, two search steps match exact typed event bytes, complete live-state snapshot, trace and top-16; 236 FE. The crash is before the second step commit, after its result. |
 | RNG STARTED / lost NumPy return | Pending call is regenerated from its pre-state under the same ID. | DE synthetic fixture interrupts before and after physical RNG invocation; one START and one COMMIT for the logical call on new-session replay. |
 | Evaluator interruption | No FE until result; a repeated physical attempt is not a modeled physics failure. | DE fixture records two identical physical attempts, one infrastructure interruption and one committed 235th result/FE. |
 | Journal corruption | Fail before evaluator dispatch. | A modified event payload is rejected on journal reopen before geometry/evaluator call. |
@@ -50,8 +50,8 @@ tests `test_uninterrupted_and_fresh_session_scientific_trajectory_match` (2),
 `test_pending_evaluator_retry_in_new_session_is_not_a_physics_failure` (1),
 `test_corrupt_arm_journal_fails_before_recovery_evaluator` (1), and
 `test_recovery_seals_terminal_after_step_commit_before_status` (1) passed.
-At prior exact HEAD `b2490cd24976b6074587e08065f2237386411da8`, GitHub Actions
-run 40716561372 passed the full suite (616 passed) and fixed-input COM regression;
+At exact HEAD `638ca1a72605878ab65c2f1a5b67f3ebe514f70b`, GitHub Actions
+run 40722256267 passed the full suite (623 passed) and fixed-input COM regression;
 new changes require their own exact-HEAD CI. Python 3.12.3, NumPy 2.5.3,
 Ubuntu 24.04.5 / WSL2 x86_64; `uv.lock` SHA-256
 `5dfd4435726518e40d5991fadc5af4099725cc0763af932e1f9015066aa1f0ff`,
@@ -62,3 +62,22 @@ completed separately (not Q1 evidence); both CLI help commands and
 `git diff --check` completed. This is synthetic software testing, not a
 scientific SAW study. Exact source SHA is reported in the PR. Q1-E's 12-cell
 comparison was not run.
+
+## Test cost reduction (owner instruction)
+
+Same local host, environment and `pytest -q --durations=15` on the two Q1-BC/D
+behavior files: **32 passed, 1470.50 s before; 32 passed, 523.90 s after**.
+Before, individual trajectory cases took 266.19/134.22 s, and repeated
+initializations dominated many tests. After, those calls took 33.80/28.96 s;
+one of these timings is a CI benchmark. The first shared setup took 44.86 s.
+
+`tests/unit/studies/conftest.py` makes one complete synthetic 234-member
+per-arm baseline and restores its three SQLite databases via SQLite backup to
+private worker-owned identity-bound paths before each consuming test. It does
+not share backend instances or mutable journal state between tests. Q0 roster
+locators are immutable, so reset uses the original paths rather than copying a
+pair to a different locator; each worker has its own directory. The standalone
+full two-arm bitwise preflight/initialization and fresh-process import guard
+remain, as do real SQLite fresh-session tests, G0–G4 and RNG foundation tests,
+4,096-FE arithmetic and corruption/failure coverage. No production durability
+setting or scientific condition was changed.
