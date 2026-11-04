@@ -94,6 +94,9 @@ class ArmSession:
         rng_commits = 0
         rng_state = self.rng.service.initial_state
         invalid_seen = False
+        previous_commit = None
+        pending_step = None
+        next_step = 0
         for event in journal.events():
             if event.event_type == "RNG_DRAW_COMMITTED":
                 rng_commits += 1
@@ -116,6 +119,26 @@ class ArmSession:
                         raise ValueError("optimizer snapshot result differs from journal prefix ledger")
                 if event.payload["rng_ordinal"] != rng_commits or state_rng != rng_state:
                     raise ValueError("optimizer snapshot RNG differs from journal prefix tape")
+                step_id = "initialization" if previous_commit is None else f"step:{next_step}"
+                expected_id = f"{event.event_type}:{cell.identity_id}:{step_id}"
+                if event.event_id != expected_id:
+                    raise ValueError("optimizer step sequence differs from journal prefix")
+                if event.event_type == "OPTIMIZER_STEP_STARTED":
+                    if pending_step is not None:
+                        raise ValueError("optimizer step has overlapping pre-states")
+                    if previous_commit is not None and any(
+                        event.payload[name] != previous_commit[name]
+                        for name in ("state", "rng_ordinal", "no_progress")
+                    ):
+                        raise ValueError("optimizer step pre-state differs from committed prefix")
+                    pending_step = step_id
+                else:
+                    if pending_step != step_id:
+                        raise ValueError("optimizer step commit has no matching pre-state")
+                    pending_step = None
+                    previous_commit = event.payload
+                    if step_id != "initialization":
+                        next_step += 1
             elif event.event_type == "EVALUATION_RESULT_COMMITTED":
                 payload = event.payload
                 if (invalid_seen or payload["key"] in self.results

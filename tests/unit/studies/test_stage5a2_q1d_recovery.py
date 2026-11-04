@@ -321,6 +321,23 @@ def test_hash_valid_snapshot_fe_mismatch_fails_before_hydration(initialized_pair
                      evaluators=(lambda *args: pytest.fail("evaluator dispatched"),) * 2)
 
 
+def test_hash_valid_pending_step_prestate_mismatch_fails_before_hydration(initialized_pair, monkeypatch):
+    metadata, pair, genesis, _, _, arms = initialized_pair
+    arm = arms[1]
+    # All members, caches, FE and RNG remain valid but this is not the
+    # immediately preceding committed initialization state.
+    arm.backend.population[0], arm.backend.population[1] = arm.backend.population[1], arm.backend.population[0]
+    arm._event("step:0", "OPTIMIZER_STEP_STARTED", {
+        "state": snapshot(arm.backend), "rng_ordinal": 0, "no_progress": 0,
+    })
+    monkeypatch.setattr("sawopt.studies.stage5a2.arm.restore",
+                        lambda *args: pytest.fail("hydration before pre-state validation"))
+    with pytest.raises(ValueError, match="step.*pre-state.*prefix"):
+        prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
+                     geometry_valid=lambda v: pytest.fail("sampler reentered"),
+                     evaluators=(lambda *args: pytest.fail("evaluator dispatched"),) * 2)
+
+
 @pytest.mark.parametrize("role", [0, 1])
 def test_hash_valid_snapshot_cache_result_mismatch_fails_before_hydration(initialized_pair, monkeypatch, role):
     metadata, pair, genesis, _, _, arms = initialized_pair

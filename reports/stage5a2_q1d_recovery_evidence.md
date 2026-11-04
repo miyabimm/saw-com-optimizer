@@ -23,6 +23,7 @@ representative local checks, not the required full Q1-D matrix.
 | Foreign pair identity | Fail before hydration/evaluation. | Altered config identity is rejected at genesis reconciliation. |
 | Journal corruption | Fail before evaluator dispatch. | A modified event payload is rejected on journal reopen before geometry/evaluator call. |
 | Hash-valid inconsistent snapshot/result | Check identity, FE/cache/RNG prefix and result rank/best before hydration. | A post-state with an extra FE, a separate forged result rank, and a cache result changed while preserving its key set are rejected before either arm hydrates or evaluates. Both arm caches and population/pending records in snapshot START/COMMIT states are compared against committed prefix results; result rows are schema/rank/best checked on reload. |
+| Hash-valid pending-step pre-state | Require ordered START/COMMIT transitions and the exact immediately preceding committed snapshot, RNG ordinal and watchdog counter before hydration. | A DE snapshot with two population members swapped but valid cache, FE, results and RNG is rejected before either arm hydrates or evaluates; the baseline implementation failed this test. Genuine two-step two-arm parity and evaluator retry continue to pass. |
 | 4096-FE step commit before terminal event | Restore without rerunning and seal one search-only terminal status. | Minimal mocked-state SQLite transition fixture verifies one durable terminal event, no extra state/FE/RNG; this is not a 4096-FE trajectory test. |
 
 The uninterrupted comparison is deliberately bounded to two search steps;
@@ -127,3 +128,7 @@ The forced zero-FE fallback fresh-session test passed in 93.94 s including
 baseline setup; it does not cover successful fallback or later adaptation. The
 forced DE duplicate transaction recovery test passed in 74.23 s including
 baseline setup; it does not cover the full watchdog or retry-cap matrix.
+The pending-prestate corruption RED test failed at `1059619` by reaching
+restore. After the transition-prefix check, it and the existing FE mismatch,
+both two-step trajectory cases and evaluator retry passed (5 in 140.68 s).
+This is not proof of all pending cursor, checkpoint, or terminal consistency.
