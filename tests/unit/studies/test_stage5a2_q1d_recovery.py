@@ -420,6 +420,25 @@ def test_hash_valid_snapshot_cache_result_mismatch_fails_before_hydration(initia
                      evaluators=(lambda *args: pytest.fail("evaluator dispatched"),) * 2)
 
 
+def test_hash_valid_lshade_rank_index_mismatch_fails_before_hydration(initialized_pair, monkeypatch):
+    metadata, pair, genesis, _, _, arms = initialized_pair
+    arm = arms[0]
+    before = snapshot(arm.backend)
+    arm._event("step:0", "OPTIMIZER_STEP_STARTED", {"state": before, "rng_ordinal": 0, "no_progress": 0})
+    key = next(iter(arm.backend._history_rank_index))
+    rank, vector, order = arm.backend._history_rank_index[key]
+    arm.backend._history_rank_index[key] = (rank[:-1] + (rank[-1] + 1.,), vector, order)
+    arm._event("step:0", "OPTIMIZER_STEP_COMMITTED", {
+        "state": snapshot(arm.backend), "rng_ordinal": 0, "no_progress": 0,
+    })
+    monkeypatch.setattr("sawopt.studies.stage5a2.arm.restore",
+                        lambda *args: pytest.fail("hydration before history validation"))
+    with pytest.raises(ValueError, match="history.*ledger"):
+        prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
+                     geometry_valid=lambda v: pytest.fail("sampler reentered"),
+                     evaluators=(lambda *args: pytest.fail("evaluator dispatched"),) * 2)
+
+
 def test_hash_valid_result_without_intent_fails_before_hydration(initialized_pair, monkeypatch):
     metadata, pair, genesis, _, _, arms = initialized_pair
     arm = arms[1]

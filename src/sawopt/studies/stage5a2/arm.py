@@ -120,10 +120,26 @@ class ArmSession:
                 records = list(state.get("_cache", {}).items()) + list(state.get("cache", {}).items())
                 for name in ("_population", "population", "parents", "pending"):
                     records.extend((member.key, member.result) for member in state.get(name, []))
+                if state.get("_incumbent") is not None:
+                    records.append((state["_incumbent_key"], state["_incumbent"]))
                 for key, result in records:
                     durable = self.results.get(canonical_key_tokens(key))
                     if durable is None or encode_typed(result) != encode_typed(durable["result"]):
                         raise ValueError("optimizer snapshot result differs from journal prefix ledger")
+                if cell.role == "lshade" and state["compact_history_cache"]:
+                    history = state["_history_rank_index"]
+                    if ({canonical_key_tokens(key) for key in history} != durable_keys
+                            or state["_history_next_order"] != len(durable_keys)):
+                        raise ValueError("optimizer history differs from journal prefix ledger")
+                    for key, (rank, physical, order) in history.items():
+                        result = self.results[canonical_key_tokens(key)]
+                        if (rank != result["rank"] or canonical_key_tokens(physical) != result["key"]
+                                or order != result["ordinal"] - 1):
+                            raise ValueError("optimizer history rank/vector/order differs from ledger")
+                    finalists = sorted(history, key=lambda key: (history[key][0], history[key][2]))[
+                        :state["historical_finalist_count"]]
+                    if state["_historical_finalist_keys"] != finalists:
+                        raise ValueError("optimizer history finalists differ from ledger")
                 if event.payload["rng_ordinal"] != rng_commits or state_rng != rng_state:
                     raise ValueError("optimizer snapshot RNG differs from journal prefix tape")
                 step_id = "initialization" if previous_commit is None else f"step:{next_step}"

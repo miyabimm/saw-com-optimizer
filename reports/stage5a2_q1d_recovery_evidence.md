@@ -25,6 +25,7 @@ representative local checks, not the required full Q1-D matrix.
 | Journal corruption | Fail before evaluator dispatch. | A modified event payload is rejected on journal reopen before geometry/evaluator call. |
 | Hash-valid inconsistent snapshot/result | Check identity, FE/cache/RNG prefix and result rank/best before hydration. | A post-state with an extra FE, a separate forged result rank, and a cache result changed while preserving its key set are rejected before either arm hydrates or evaluates. Both arm caches and population/pending records in snapshot START/COMMIT states are compared against committed prefix results; result rows are schema/rank/best checked on reload. |
 | Hash-valid pending-step pre-state | Require ordered START/COMMIT transitions and the exact immediately preceding committed snapshot, RNG ordinal and watchdog counter before hydration. | A DE snapshot with two population members swapped but valid cache, FE, results and RNG is rejected before either arm hydrates or evaluates; the baseline implementation failed this test. Genuine two-step two-arm parity and evaluator retry continue to pass. |
+| Hash-valid L-SHADE history | Reconcile compact rank/vector/order index, incumbent record and stable top-16 against the exact FE ledger before hydration. | A forged post-step history rank previously reached restore; it is now rejected. Both trajectory parity cases, interrupted initialization and forced zero-FE fallback remain passing. |
 | Checkpoint / journal prefix | Atomically snapshot only a committed optimizer boundary; verify identity, population, digest, sequence and prefix before hydration; replay a valid later journal tail. | Real SQLite DE fixture crashes before and after checkpoint insertion, confirms zero/one event, resumes with next sequence, adds a search step and verifies stale-checkpoint recovery. A hash-valid wrong-head checkpoint is refused before either arm hydrates. Resume currently rebuilds from verified optimizer events, not by loading the checkpoint as an acceleration. |
 | 4096-FE step commit before terminal event | Restore without rerunning and seal one search-only terminal status. | Minimal mocked-state SQLite transition fixture verifies one durable terminal event, no extra state/FE/RNG; this is not a 4096-FE trajectory test. |
 
@@ -197,3 +198,9 @@ of mid-chain corruption and prevention of further append. The foundation suite,
 checkpoint recovery and both trajectory cases passed (69 tests / 253.14 s).
 The time and storage needed for full-horizon parity remain unmeasured and the
 large-journal change alone does not establish that parity.
+
+A separate hash-valid L-SHADE history-rank corruption test was RED at `eeae8a1`.
+After index, finalist and incumbent reconciliation, it, both two-step parity
+cases, interrupted initialization and forced fallback passed (5 in 251.70 s).
+This does not prove every possible malformed optimizer state or full-horizon
+history.
