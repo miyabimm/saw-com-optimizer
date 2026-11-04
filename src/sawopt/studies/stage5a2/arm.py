@@ -105,6 +105,15 @@ class ArmSession:
                 cache = state["_cache_frequency_versions"] if cell.role == "lshade" else state["cache"]
                 if {canonical_key_tokens(key) for key in cache} != durable_keys:
                     raise ValueError("optimizer snapshot cache differs from journal prefix ledger")
+                # A matching key set alone does not prove that the restored
+                # optimizer will use the committed result for each candidate.
+                records = list(state.get("_cache", {}).items()) + list(state.get("cache", {}).items())
+                for name in ("_population", "population", "parents", "pending"):
+                    records.extend((member.key, member.result) for member in state.get(name, []))
+                for key, result in records:
+                    durable = self.results.get(canonical_key_tokens(key))
+                    if durable is None or encode_typed(result) != encode_typed(durable["result"]):
+                        raise ValueError("optimizer snapshot result differs from journal prefix ledger")
                 if event.payload["rng_ordinal"] != rng_commits or state_rng != rng_state:
                     raise ValueError("optimizer snapshot RNG differs from journal prefix tape")
             elif event.event_type == "EVALUATION_RESULT_COMMITTED":

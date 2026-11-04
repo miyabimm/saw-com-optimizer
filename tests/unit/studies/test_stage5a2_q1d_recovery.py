@@ -220,6 +220,23 @@ def test_hash_valid_snapshot_fe_mismatch_fails_before_hydration(initialized_pair
                      evaluators=(lambda *args: pytest.fail("evaluator dispatched"),) * 2)
 
 
+@pytest.mark.parametrize("role", [0, 1])
+def test_hash_valid_snapshot_cache_result_mismatch_fails_before_hydration(initialized_pair, monkeypatch, role):
+    metadata, pair, genesis, _, _, arms = initialized_pair
+    arm = arms[role]
+    cache = arm.backend._cache if role == 0 else arm.backend.cache
+    key = next(iter(cache))
+    cache[key]["metrics"]["worst_il_db"] += 1.0
+    forged = snapshot(arm.backend)
+    arm._event("step:0", "OPTIMIZER_STEP_STARTED", {"state": forged, "rng_ordinal": 0, "no_progress": 0})
+    monkeypatch.setattr("sawopt.studies.stage5a2.arm.restore",
+                        lambda *args: pytest.fail("hydration before result validation"))
+    with pytest.raises(ValueError, match="snapshot.*result.*ledger"):
+        prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
+                     geometry_valid=lambda v: pytest.fail("sampler reentered"),
+                     evaluators=(lambda *args: pytest.fail("evaluator dispatched"),) * 2)
+
+
 def test_hash_valid_result_rank_mismatch_fails_before_hydration(initialized_pair, monkeypatch):
     metadata, pair, genesis, _, _, arms = initialized_pair
     arm = arms[1]

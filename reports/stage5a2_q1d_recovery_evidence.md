@@ -19,7 +19,7 @@ representative local checks, not the required full Q1-D matrix.
 | Proposal committed before intent | Generate the same intent without redrawing committed RNG. | DE fresh-session fixture reproduces the proposal's physical bits, does not invoke the RNG and commits one FE. |
 | Foreign pair identity | Fail before hydration/evaluation. | Altered config identity is rejected at genesis reconciliation. |
 | Journal corruption | Fail before evaluator dispatch. | A modified event payload is rejected on journal reopen before geometry/evaluator call. |
-| Hash-valid inconsistent snapshot/result | Check identity, FE/cache/RNG prefix and result rank/best before hydration. | A post-state with an extra FE and a separate forged result rank are rejected before either arm hydrates or evaluates. Snapshot START/COMMIT states are checked against the preceding journal result/cache and RNG prefixes; result rows are schema/rank/best checked on reload. |
+| Hash-valid inconsistent snapshot/result | Check identity, FE/cache/RNG prefix and result rank/best before hydration. | A post-state with an extra FE, a separate forged result rank, and a cache result changed while preserving its key set are rejected before either arm hydrates or evaluates. Both arm caches and population/pending records in snapshot START/COMMIT states are compared against committed prefix results; result rows are schema/rank/best checked on reload. |
 | 4096-FE step commit before terminal event | Restore without rerunning and seal one search-only terminal status. | Minimal mocked-state SQLite transition fixture verifies one durable terminal event, no extra state/FE/RNG; this is not a 4096-FE trajectory test. |
 
 The uninterrupted comparison is deliberately bounded to two search steps;
@@ -107,3 +107,14 @@ bitwise preflight, independent ledgers, fresh-process no-COM guard, G0–G4,
 RNG/replay, full 4,096-FE DE arithmetic and corruption checks remain. No
 production code or SQLite durability policy changed. This optimization does
 not close any of the remaining Q1-D qualification gaps.
+
+### Snapshot result consistency increment
+
+The new cache-result corruption test was first run against `8136e99` and
+failed: a hash-valid, same-key altered DE cache proceeded to hydration. After
+the prefix-result check, both role variants and both fresh-session
+committed-step recovery cases passed (**4 passed in 138.85 s**). The two
+uninterrupted-versus-restarted trajectory variants and the original DE
+corruption case also passed (**3 passed in 145.27 s**). These focused checks
+are not a full fault matrix; rank-index, transition/cursor and checkpoint
+consistency require further work. Final exact-HEAD CI is still required.
