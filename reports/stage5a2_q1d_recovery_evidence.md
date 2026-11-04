@@ -38,6 +38,38 @@ Q1-12/16/19 and dependent Q1-03/05/06/07/14/15/17/18 remain
 `PENDING_DEPENDENCY`; independent review and final Q1-E fingerprint are also
 outstanding.
 
+## Local clause disposition
+
+| Primary gate | Local evidence | Still pending; not `LOCAL_EVIDENCE_READY` |
+|---|---|---|
+| Q1-12 | Typed modeled/invalid outcomes, infrastructure retry, partial initialization and selected mismatch refusals. | Full failure taxonomy, checkpoint/journal mismatch and exhaustion paths. |
+| Q1-16 | Selected genesis/RNG foundation cases, partial initialization, proposal/duplicate/result replay, forced zero-FE fallback and committed-step prefix. | Complete distinct transaction table, cursor/checkpoint/validation, memory flush/archive trim and terminal full-horizon recovery. |
+| Q1-19 | Two-step both-arm typed event/state/trace/top-16 comparison; durable FE/result/rank consistency checks. | Complete trace/counter reconciliation and actual full-horizon both-arm parity. |
+
+## Reproducible bounded trajectory fingerprints
+
+The following are **local synthetic software evidence**, not full-horizon Q1
+qualification. Source tested: `6bf0039b7f0f546308ac91f27ae67b391f15a9b2`;
+Python 3.12.3, NumPy 2.5.3, Linux WSL2 x86_64/glibc 2.39; locked dependency
+SHA-256 `5dfd4435726518e40d5991fadc5af4099725cc0763af932e1f9015066aa1f0ff`;
+fixture source SHA-256 `e3bea6f09c05d28a61afc53ccab979dc42275d1de59a58182b45331f9569861c`.
+The fixture's declared synthetic config SHA-256 is
+`c7375948cc05269ff8643754615d605a6a54c7f5a0ef83c118a8f3adb7245e0a` and its
+declared environment SHA-256 is
+`ed803ebaf5e6802cca2132164095a8cd8e61b613c53b7f8de1d7c1e37aa6dc12`.
+These are synthetic identity tokens, not hashes of the actual host or source.
+The L-SHADE search fixture uses a forced zero score after the shared baseline.
+
+| Role | SHA-256 of typed ordered events + snapshot + trace + best/top-16 | RNG START/COMMIT | Proposals | FE / trace |
+|---|---|---:|---:|---:|
+| L-SHADE | `433e223fd0da7d2eeecb4c233cffa56c4f587bc52f7969b1d1c4403e0c1454df` | 16 / 16 | 2 | 236 / 236 |
+| DE | `35549cdeee01f73d0f7c05b07e3e815eda3c55f1630d0a2fc7215af5dd298187` | 6 / 6 | 2 | 236 / 236 |
+
+Reproduce with `uv run --locked pytest -s -q tests/unit/studies/test_stage5a2_q1d_recovery.py::test_uninterrupted_and_fresh_session_scientific_trajectory_match`.
+Both resumed trajectories are compared byte-for-byte to their uninterrupted
+reference; at-least-once physical attempts are excluded from these digests.
+The observed local run passed both cases in 128.85 s including baseline setup.
+
 ## Reproduction and limits
 
 Base `1f7da215fd2cd1b1901192b93e16ae0feb11d4f3`; synthetic fixture identity,
