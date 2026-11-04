@@ -144,6 +144,44 @@ def test_recovery_seals_terminal_after_step_commit_before_status(tmp_path, monke
     assert len([e for e in journal.events() if e.event_type == "CELL_TERMINAL_STATUS_COMMITTED"]) == 1
 
 
+def test_lshade_zero_fe_fallback_replays_in_fresh_session(initialized_pair, monkeypatch):
+    metadata, pair, genesis, _, _, arms = initialized_pair
+    arm = arms[0]
+    frozen = arm.backend._population[0].physical.copy()
+    arm.backend.canonicalizer = lambda v: (frozen.copy(), tuple(frozen))
+    original = arm._event
+    def crash(suffix, kind, payload):
+        if kind == "OPTIMIZER_STEP_COMMITTED":
+            raise RuntimeError("zero-FE step interrupted")
+        return original(suffix, kind, payload)
+    arm._event = crash
+    with pytest.raises(RuntimeError, match="zero-FE step interrupted"):
+        arm.step()
+    expected = snapshot(arm.backend)
+    before = arm.journal.events()
+    assert sum(event.event_type == "PROPOSAL_ATTEMPT" for event in before) == 262
+    assert sum(event.event_type == "FALLBACK_INVOKED" for event in before) == 1
+    evaluate = lambda v, o: candidate(v, o, pair=pair)
+    _, resumed = prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
+                              geometry_valid=lambda v: pytest.fail("sampler reentered"),
+                              evaluators=(evaluate, evaluate))
+    arm = resumed[0]
+    arm.backend.canonicalizer = lambda v: (frozen.copy(), tuple(frozen))
+    arm.evaluator = lambda *args: pytest.fail("duplicate caused evaluator dispatch")
+    monkeypatch.setattr(arm.rng.service, "_invoke", lambda *args: pytest.fail("committed RNG redrawn"))
+    assert arm.step()
+    assert snapshot(arm.backend) == expected
+    assert arm.backend.unique_evaluations == len(arm.trace) == 234
+    events = arm.journal.events()
+    assert sum(event.event_type == "PROPOSAL_ATTEMPT" for event in events) == 262
+    assert sum(event.event_type == "FALLBACK_INVOKED" for event in events) == 1
+    assert sum(event.event_type == "OPTIMIZER_STEP_COMMITTED" for event in events) == 2
+    arm.step_index -= 1  # reread the already committed step, not a new proposal
+    assert arm.step()
+    assert snapshot(arm.backend) == expected
+    assert arm.journal.events()[-1].event_hash == events[-1].event_hash
+
+
 def test_pending_evaluator_retry_in_new_session_is_not_a_physics_failure(initialized_pair):
     metadata, pair, genesis, _, _, arms = initialized_pair
     calls = []

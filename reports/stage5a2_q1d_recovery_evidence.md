@@ -18,6 +18,7 @@ representative local checks, not the required full Q1-D matrix.
 | RNG STARTED / lost NumPy return | Pending call is regenerated from its pre-state under the same ID. | DE synthetic fixture interrupts before and after physical RNG invocation; one START and one COMMIT for the logical call on new-session replay. |
 | Evaluator interruption | No FE until result; a repeated physical attempt is not a modeled physics failure. | DE fixture records two identical physical attempts, one infrastructure interruption and one committed 235th result/FE. |
 | Proposal committed before intent | Generate the same intent without redrawing committed RNG. | DE fresh-session fixture reproduces the proposal's physical bits, does not invoke the RNG and commits one FE. |
+| L-SHADE duplicate/fallback, zero-FE step | Replay all committed RNG and duplicate proposals, preserve zero FE, commit the step once. | An injected duplicate-only canonicalizer forces six normal and 256 fallback attempts; fresh-session replay reproduces the exact post-state with no new draw/evaluation, then rereading the commit leaves the journal head unchanged. This is a forced boundary fixture, not a normal canonicalizer trajectory. |
 | Foreign pair identity | Fail before hydration/evaluation. | Altered config identity is rejected at genesis reconciliation. |
 | Journal corruption | Fail before evaluator dispatch. | A modified event payload is rejected on journal reopen before geometry/evaluator call. |
 | Hash-valid inconsistent snapshot/result | Check identity, FE/cache/RNG prefix and result rank/best before hydration. | A post-state with an extra FE, a separate forged result rank, and a cache result changed while preserving its key set are rejected before either arm hydrates or evaluates. Both arm caches and population/pending records in snapshot START/COMMIT states are compared against committed prefix results; result rows are schema/rank/best checked on reload. |
@@ -121,3 +122,5 @@ are not a full fault matrix; rank-index, transition/cursor and checkpoint
 consistency require further work. Final exact-HEAD CI is still required.
 A separate fresh 234-member-per-arm initialization interruption test passed
 in 61.68 s; it does not establish every genesis or initialization boundary.
+The forced zero-FE fallback fresh-session test passed in 93.94 s including
+baseline setup; it does not cover successful fallback or later adaptation.
