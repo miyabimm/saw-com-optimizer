@@ -137,6 +137,26 @@ def test_pair_actual_preflight_mismatch_stops_both_before_any_fe(tmp_path, monke
     assert not calls
 
 
+def test_initialized_baseline_reset_isolates_state_and_durable_journals(_q1_initialized_baseline):
+    _, _, _, _, _, first = _q1_initialized_baseline()
+    snapshots = [snapshot(arm.backend) for arm in first]
+    heads = [arm.journal.events()[-1].event_hash for arm in first]
+    for arm in first:
+        assert arm.backend.rng is arm.rng
+        assert arm.rng.service.journal is arm.journal
+        assert arm.backend.evaluator.__self__ is arm
+        observer = arm.backend._q1_observer if arm.cell.role == "lshade" else arm.backend.observe
+        assert observer.__self__ is arm and arm.rng.before_draw.__self__ is arm
+        arm._event("isolation", "TEST_ISOLATION", {})
+        arm.trace.clear()
+    _, _, _, _, _, second = _q1_initialized_baseline()
+    assert [snapshot(arm.backend) for arm in second] == snapshots
+    assert [arm.journal.events()[-1].event_hash for arm in second] == heads
+    assert all(len(arm.trace) == 234 for arm in second)
+    assert all(a is not b and a.backend is not b.backend and a.journal is not b.journal
+               for a, b in zip(first, second))
+
+
 def test_lshade_hooked_unhooked_bitwise_parity_and_frozen_settings(initialized_pair):
     metadata, pair, _, canonicalize, seal, arms = initialized_pair
     hooked = arms[0]

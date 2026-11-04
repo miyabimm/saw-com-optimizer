@@ -6,6 +6,7 @@ before every consuming test; databases cannot be copied to a new locator.
 No connection or arm is reused across resets, and backup files are never opened
 for writing after creation. Full genesis/preflight tests use separate fixtures.
 """
+import copy
 import sqlite3
 
 import pytest
@@ -20,8 +21,8 @@ def _q1_initialized_baseline(tmp_path_factory):
     baseline = tmp_path_factory.mktemp("q1-backup")
     metadata, pair, genesis, canonicalize = fixture(root)
     evaluate = lambda v, o: candidate(v, o, pair=pair)
-    prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
-                 geometry_valid=lambda v: True, evaluators=(evaluate, evaluate))
+    seal, baseline_arms = prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
+                                        geometry_valid=lambda v: True, evaluators=(evaluate, evaluate))
     paths = (genesis.pair_path, *genesis.cell_paths)
     for path in paths:
         with sqlite3.connect(path) as source, sqlite3.connect(baseline / path.name) as target:
@@ -35,9 +36,10 @@ def _q1_initialized_baseline(tmp_path_factory):
                 path.with_name(path.name + suffix).unlink(missing_ok=True)
             with sqlite3.connect(f"file:{baseline / path.name}?mode=ro", uri=True) as source, sqlite3.connect(path) as target:
                 source.backup(target)
-        seal, arms = prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
-                                  geometry_valid=lambda v: pytest.fail("sealed sampler reentered"),
-                                  evaluators=(evaluate, evaluate))
+        # Copy the initialized in-process state as well as the databases.
+        # Fresh-session recovery tests still explicitly call prepare_pair after
+        # fault injection; this shortcut is only their initial starting point.
+        arms = copy.deepcopy(baseline_arms)
         return metadata, pair, genesis, canonicalize, seal, arms
     return reset
 

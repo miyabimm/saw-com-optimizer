@@ -85,3 +85,25 @@ full two-arm bitwise preflight/initialization and fresh-process import guard
 remain, as do real SQLite fresh-session tests, G0–G4 and RNG foundation tests,
 4,096-FE arithmetic and corruption/failure coverage. No production durability
 setting or scientific condition was changed.
+
+### Additional initialization-state reuse (local, same host)
+
+At `c1b095f86675a6da70f3882f107bd07944d38f5e` the current two-file
+`uv run --locked pytest tests/unit/studies/test_stage5a2_q1bc_behavior.py tests/unit/studies/test_stage5a2_q1d_recovery.py --durations=15 -q`
+readout was **36 passed in 765.61 s**. After this increment it was **37 passed
+in 572.03 s** (193.58 s / 25.3% lower; one additional isolation test).
+Host and filesystem variability limit the precision of this comparison; neither
+is a CI measurement. Examples: both-arm trajectory DE call 52.55→42.76 s,
+L-SHADE call 31.01→22.83 s; fresh full preflight test 72.18→81.85 s.
+
+The baseline now also deep-copies its initialized in-process arms on each
+reset, rather than running `prepare_pair` on the restored journals merely to
+set up a test. A focused test checks independent arm/backend/journal objects,
+bound callbacks, exact initial snapshots, and restoration of journal heads and
+234-row traces after mutations. Identity-bound SQLite backups and per-worker
+paths are unchanged. Fresh-session crash tests still explicitly reconstruct
+via `prepare_pair` **after** interruption, and the real two-arm 234-input
+bitwise preflight, independent ledgers, fresh-process no-COM guard, G0–G4,
+RNG/replay, full 4,096-FE DE arithmetic and corruption checks remain. No
+production code or SQLite durability policy changed. This optimization does
+not close any of the remaining Q1-D qualification gaps.
