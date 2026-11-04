@@ -15,6 +15,34 @@ from sawopt.studies.stage5a2.pair import prepare_pair
 from .q1bc_fixture import fixture, candidate
 
 
+def test_interrupted_initialization_reuses_committed_members_in_fresh_session(tmp_path):
+    metadata, pair, genesis, _ = fixture(tmp_path)
+    calls = [[], []]
+    def evaluate(role, vector, ordinal):
+        calls[role].append((ordinal, vector.tobytes()))
+        if role == 0 and ordinal == 10 and sum(o == 10 for o, _ in calls[0]) == 1:
+            raise RuntimeError("initialization evaluator interrupted")
+        return candidate(vector, ordinal, pair=pair)
+    evaluators = tuple(lambda v, o, role=role: evaluate(role, v, o) for role in range(2))
+    with pytest.raises(RuntimeError, match="initialization evaluator interrupted"):
+        prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
+                     geometry_valid=lambda v: True, evaluators=evaluators)
+    assert [ordinal for ordinal, _ in calls[0]] == list(range(1, 11))
+    assert not calls[1]
+    seal, arms = prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
+                              geometry_valid=lambda v: pytest.fail("sealed sampler reentered"),
+                              evaluators=evaluators)
+    assert [ordinal for ordinal, _ in calls[0]] == list(range(1, 11)) + list(range(10, 235))
+    assert calls[0][9] == calls[0][10]
+    assert [ordinal for ordinal, _ in calls[1]] == list(range(1, 235))
+    expected = [member.sealed_physical_le_f64 for member in seal.members]
+    assert [value for _, value in calls[0][:9] + calls[0][10:]] == expected
+    assert [value for _, value in calls[1]] == expected
+    for arm in arms:
+        assert len(arm.results) == len(arm.trace) == arm.backend.unique_evaluations == 234
+        assert sum(event.event_type == "EVALUATION_RESULT_COMMITTED" for event in arm.journal.events()) == 234
+
+
 @pytest.mark.parametrize("role", [0, 1])
 def test_new_session_hydrates_committed_steps_and_replays_pending(initialized_pair, role):
     metadata, pair, genesis, _, _, arms = initialized_pair

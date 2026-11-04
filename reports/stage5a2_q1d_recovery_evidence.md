@@ -10,6 +10,7 @@ representative local checks, not the required full Q1-D matrix.
 
 | Boundary | Expected | Observed |
 |---|---|---|
+| Interrupted arm initialization | Retain the seal and prior committed results; retry only the pending evaluator attempt in a new session. | Fresh real SQLite fixture interrupts L-SHADE initialization at ordinal 10. Ordinals 1–9 are not redispatched, ordinal 10 is retried with identical physical bits, and both arms finish with 234 independent committed results/trace rows matching the seal. |
 | New session after a committed search step | Restore the contiguous step prefix, including backend, RNG ordinal and watchdog state. | Both arms restored one committed step in the focused synthetic test. |
 | Result committed, before next optimizer-step commit | Reconstruct the transition from its pre-state with the committed RNG and result; do not dispatch another evaluator call. | Both arms reproduced the interrupted backend snapshot and 236 unique FE/trace rows in a new session. |
 | Candidate record mapping serialization | Stable snapshot bytes despite canonical journal decoding of mapping key order. | Candidate record mappings are serialized in canonical key order; cache/population ordering is not sorted. Existing same-session replay tests pass. |
@@ -118,3 +119,5 @@ uninterrupted-versus-restarted trajectory variants and the original DE
 corruption case also passed (**3 passed in 145.27 s**). These focused checks
 are not a full fault matrix; rank-index, transition/cursor and checkpoint
 consistency require further work. Final exact-HEAD CI is still required.
+A separate fresh 234-member-per-arm initialization interruption test passed
+in 61.68 s; it does not establish every genesis or initialization boundary.
