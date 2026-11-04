@@ -1,4 +1,5 @@
 """Representative fresh-session synthetic recovery checks (not gate closure)."""
+import hashlib
 import sqlite3
 from dataclasses import replace
 from types import SimpleNamespace
@@ -95,6 +96,12 @@ def test_uninterrupted_and_fresh_session_scientific_trajectory_match(initialized
                 sorted(arm.trace, key=lambda r: (r["rank"], r["ordinal"]))[:16]]
     expected = (scientific_events(reference), snapshot(reference.backend), encode_typed(reference.trace),
                 reference.best_rank, reference.best_key, top16(reference))
+    event_types = [kind for kind, _ in expected[0]]
+    rng_calls = event_types.count("RNG_DRAW_STARTED")
+    assert rng_calls == event_types.count("RNG_DRAW_COMMITTED")
+    assert event_types.count("EVALUATION_RESULT_COMMITTED") == len(reference.trace) == 236
+    print(f"Q1-D role={role} digest={hashlib.sha256(encode_typed(expected)).hexdigest()} "
+          f"RNG={rng_calls} proposals={event_types.count('PROPOSAL_ATTEMPT')} FE=236 trace=236")
     # Restore an isolated baseline to the same identity-bound journal paths.
     # Capture all reference data first; no old session is used after reset.
     _, _, _, _, _, restarted_arms = _q1_initialized_baseline()
