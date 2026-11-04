@@ -178,6 +178,72 @@ The missing-intent corruption check was RED at `34ada98`; after adding the
 intent/attempt/result prefix checks it, rank mismatch, evaluator retry, partial
 initialization and both trajectory cases passed (6 tests in 236.24 s).
 
+### Bounded storage and restart feasibility probe (latest review)
+
+**Disposition: full-horizon execution blocked pending a bounded resource plan
+and contract-safe acceleration; not a Q1-D pass.** At source
+`d89161978ed3c6194bd942413acc7b5a994c5b05`, the synthetic fixture was run for
+at most 20 post-initialization steps per arm, with a fresh `prepare_pair` at
+0, 5, 10 and 20 steps. Run with
+`uv run --locked python -m tools.diagnostics.q1d_storage_probe`. It uses a
+private temporary directory, a 2,000,000,000-byte between-step stop and a
+5,000,000,000-byte free-space floor, and removes only its own temporary data.
+It has no COM/SAW/production calls. Step 0 means both real 234-member arms
+were initialized; this is not a full-horizon parity check. The measured script
+SHA-256 was `94b21cfa45d8ad7e1612a8bae3fad57b32c722858bb99fef76404ecad2440a50`;
+the checked-in version replaces the `assert arm.step()` with an explicit
+failure check (so optimized Python cannot skip the call). The measured source
+fixture and lock hashes are the hashes recorded above. Python 3.12.3, NumPy
+2.5.3, Linux 6.18.54.1 WSL2 x86_64/glibc 2.39; starting free space
+1,007,172,345,856 bytes. Initialization took 65.62 s. Sizes include main
+SQLite file and any WAL/SHM sidecars at each quiescent sampling point.
+
+| Steps / FE per arm | L-SHADE bytes / chain verify s | DE bytes / chain verify s | Both-arm fresh-session `prepare_pair` s |
+|---|---:|---:|---:|
+| 0 / 234 | 7,065,600 / 0.139 | 8,486,912 / 0.160 | 9.76 |
+| 5 / 239 | 55,091,200 / 0.618 | 112,087,040 / 1.172 | 58.43 |
+| 10 / 244 | 103,223,296 / 0.763 | 210,690,048 / 1.680 | 96.23 |
+| 20 / 254 | 200,540,160 / 1.448 | 411,959,296 / 3.392 | 193.83 |
+
+The pair journal was 2,191,360 bytes at each point. For steps 1–5, 6–10,
+11–20 respectively, L-SHADE grew 9.61/9.63/9.73 MB per step and averaged
+3.01/1.73/1.75 s per step; DE grew 20.72/19.72/20.13 MB per step and
+averaged 3.81/3.49/4.48 s. The restart measurement includes both-arm
+verification, full prefix reconciliation, initialization replay and hydration;
+it is not merely the separately timed chain hash verification. The checkpoint
+restarts themselves do not inject faults.
+
+**Illustrative linear sensitivity, not a forecast or resource upper bound:**
+assuming one FE per step all the way to 4,096 and extending the three measured
+slopes yields roughly 34.6–35.0 GiB L-SHADE and 70.9–74.5 GiB DE for one
+pair, or 211–219 GiB for two simultaneous independent reference/restart
+copies, excluding pair journals, temporary overhead and validation. Available
+space at the start was approximately 938 GiB, so these early estimates do
+**not** show an immediate disk-capacity failure. Step-time slopes alone suggest
+about 11–16 hours for both trajectories of both arms; extending the observed
+restart increments (7.56–9.76 seconds per additional step for the pair)
+suggests another 8–10.5 hours for one near-terminal restart. These figures
+ignore initialization, final comparison, fault setup, memory pressure and
+changes in state size or the number of zero-FE steps. In particular, 20 steps
+cannot establish late-horizon growth or bound runtime/storage; full-horizon
+execution has not been attempted.
+
+The concrete blocker is that the required independent full-horizon parity
+would demand a many-hour resource allocation with unbounded later growth and
+expensive verified restart, while this environment has no approved long-run
+resource/abort plan. Do not reinterpret that as insufficient disk or a Q0
+contradiction. A minimum candidate remedy is to reduce repeated decoding and
+exact comparison of identical committed snapshot material during recovery,
+while still verifying the entire hash chain and each prefix, plus investigate
+lossless physical storage compression without changing logical event bytes,
+transaction boundaries or historical journals. Neither remedy is implemented
+or shown sufficient. Any changed journal envelope, snapshot representation or
+relaxation of exact prefix checking requires contract review; do not change
+budget, fidelity, durability or Q0 semantics to make the probe finish. The
+owner/reviewer should decide a bounded full-horizon resource policy after a
+measured, independently reviewed improvement. Memory flush/archive trim,
+remaining fault boundaries and both 4,096-FE parities remain pending.
+
 ### Large-journal recovery memory
 
 A bounded local COM-free fixture cost probe (not a full-horizon run) measured
