@@ -572,7 +572,8 @@ def _verify_population_attachment(
         raise InitializationError("arm journal does not match its immutable cell identity")
     if journal.get_immutable_record("cell_identity", cell.identity_id) != cell.canonical_bytes:
         raise InitializationError("arm journal lacks the exact Phase-I cell identity")
-    journal.events()  # validate the complete cell event hash chain
+    for _ in journal.iter_events():  # validate the complete cell event hash chain
+        pass
     event = journal.get_event(_attachment_event_id(cell, seal))
     if (
         event is None or event["event_type"] != "POPULATION_ATTACHMENT_ATTACHED"
@@ -596,7 +597,8 @@ def attach_population(
         or hashlib.sha256(b"sawopt-stage5a2-pair-identity-v2\0" + pair_bytes).hexdigest() != cell.pair_identity_id
     ):
         raise InitializationError("pair journal lacks the exact reciprocal Phase-I identity")
-    pair_journal.events()  # verify the seal event against the complete pair chain
+    for _ in pair_journal.iter_events():  # verify the complete pair chain
+        pass
     sealed = pair_journal.get_event(
         f"POPULATION_ATTACHMENT_SEALED:{seal.pair_identity_id}:{seal.population_sha256}"
     )
@@ -802,7 +804,7 @@ def require_both_preflight_certificates(
         except InitializationError as exc:
             raise InitializationGateError(f"verified Phase-I/II attachment is required: {exc}") from exc
         events = [
-            event.payload for event in journal.events()
+            event.payload for event in journal.iter_events()
             if event.event_type == "INITIALIZATION_PREFLIGHT_CERTIFICATE"
             and event.payload.get("cell_identity_id") == cell.identity_id
         ]

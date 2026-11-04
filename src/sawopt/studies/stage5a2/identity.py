@@ -545,7 +545,8 @@ class GenesisCoordinator:
                 or cell_journal.immutable_records() != (("cell_identity", cell.identity_id, cell.canonical_bytes),)
             ):
                 raise GenesisError("G4 cell identity is missing or changed; it may not be recreated")
-            cell_journal.events()  # validate the full post-genesis event chain
+            for _ in cell_journal.iter_events():  # verify the full post-genesis chain
+                pass
         barrier_id = f"ALL_IDENTITIES_READY:{pair.identity_id}:{roster.roster_hash}"
         barrier = pair_journal.get_event(barrier_id)
         if barrier is None or barrier["event_type"] != "ALL_IDENTITIES_READY":

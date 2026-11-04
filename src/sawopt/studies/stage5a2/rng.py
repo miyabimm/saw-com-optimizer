@@ -404,7 +404,7 @@ class RNGCallService:
         self._pending_streams: dict[tuple[str, str], str] = {}
         # Recovery validates the full existing chain exactly once. Live calls
         # validate only newly appended journal events.
-        for event in journal.events():
+        for event in journal.iter_events():
             self._accept_journal_event(event)
 
     @staticmethod

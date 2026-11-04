@@ -16,7 +16,7 @@ from sawopt.optimization.selection import GeometryFirstComparator
 from .candidates import InvalidCandidate, validate_candidate
 from .codec import encode_typed
 from .initialization import canonical_key_tokens
-from .live_state import restore, snapshot
+from .live_state import inspect_snapshot, restore, snapshot
 from .rng import RNGCallIdentity, RNGCallService
 
 
@@ -90,18 +90,187 @@ class ArmSession:
         self.expected_initial_inputs = None
         self.status = "NOT_INITIALIZED"
         self.rng.before_draw = self._before_draw
-        for event in journal.events():
-            if event.event_type == "EVALUATION_RESULT_COMMITTED":
+        durable_keys = set()
+        rng_commits = 0
+        rng_state = self.rng.service.initial_state
+        invalid_seen = False
+        previous_commit = None
+        pending_step = None
+        next_step = 0
+        checkpoint_sequence = 0
+        attachment = None
+        intents = {}
+        for event in journal.iter_events():
+            if event.event_type == "POPULATION_ATTACHMENT_ATTACHED":
+                if attachment is not None:
+                    raise ValueError("duplicate population attachment")
+                attachment = event.payload
+            elif event.event_type == "RNG_DRAW_COMMITTED":
+                rng_commits += 1
+                rng_state = event.payload["post_state"]
+            elif event.event_type in {"OPTIMIZER_STEP_STARTED", "OPTIMIZER_STEP_COMMITTED"}:
+                state, state_rng = inspect_snapshot(backend, event.payload["state"])
+                if state["unique_evaluations"] != len(durable_keys):
+                    raise ValueError("optimizer snapshot FE differs from journal prefix ledger")
+                cache = state["_cache_frequency_versions"] if cell.role == "lshade" else state["cache"]
+                if {canonical_key_tokens(key) for key in cache} != durable_keys:
+                    raise ValueError("optimizer snapshot cache differs from journal prefix ledger")
+                # A matching key set alone does not prove that the restored
+                # optimizer will use the committed result for each candidate.
+                records = list(state.get("_cache", {}).items()) + list(state.get("cache", {}).items())
+                for name in ("_population", "population", "parents", "pending"):
+                    records.extend((member.key, member.result) for member in state.get(name, []))
+                if state.get("_incumbent") is not None:
+                    records.append((state["_incumbent_key"], state["_incumbent"]))
+                for key, result in records:
+                    durable = self.results.get(canonical_key_tokens(key))
+                    if durable is None or encode_typed(result) != encode_typed(durable["result"]):
+                        raise ValueError("optimizer snapshot result differs from journal prefix ledger")
+                if cell.role == "lshade" and state["compact_history_cache"]:
+                    history = state["_history_rank_index"]
+                    if ({canonical_key_tokens(key) for key in history} != durable_keys
+                            or state["_history_next_order"] != len(durable_keys)):
+                        raise ValueError("optimizer history differs from journal prefix ledger")
+                    for key, (rank, physical, order) in history.items():
+                        result = self.results[canonical_key_tokens(key)]
+                        if (rank != result["rank"] or canonical_key_tokens(physical) != result["key"]
+                                or order != result["ordinal"] - 1):
+                            raise ValueError("optimizer history rank/vector/order differs from ledger")
+                    finalists = sorted(history, key=lambda key: (history[key][0], history[key][2]))[
+                        :state["historical_finalist_count"]]
+                    if state["_historical_finalist_keys"] != finalists:
+                        raise ValueError("optimizer history finalists differ from ledger")
+                if event.payload["rng_ordinal"] != rng_commits or state_rng != rng_state:
+                    raise ValueError("optimizer snapshot RNG differs from journal prefix tape")
+                step_id = "initialization" if previous_commit is None else f"step:{next_step}"
+                expected_id = f"{event.event_type}:{cell.identity_id}:{step_id}"
+                if event.event_id != expected_id:
+                    raise ValueError("optimizer step sequence differs from journal prefix")
+                if event.event_type == "OPTIMIZER_STEP_STARTED":
+                    if pending_step is not None:
+                        raise ValueError("optimizer step has overlapping pre-states")
+                    if previous_commit is not None and any(
+                        event.payload[name] != previous_commit[name]
+                        for name in ("state", "rng_ordinal", "no_progress")
+                    ):
+                        raise ValueError("optimizer step pre-state differs from committed prefix")
+                    pending_step = step_id
+                else:
+                    if pending_step != step_id:
+                        raise ValueError("optimizer step commit has no matching pre-state")
+                    pending_step = None
+                    previous_commit = event.payload
+                    if step_id != "initialization":
+                        next_step += 1
+            elif event.event_type == "CHECKPOINT_SNAPSHOT":
                 payload = event.payload
-                if payload["key"] in self.results or payload["ordinal"] != len(self.trace) + 1:
-                    raise ValueError("duplicate/gapped durable FE ledger")
-                self.results[payload["key"]] = payload
-                self.trace.append(payload)
-                if payload["rank"] is not None:
-                    self.best_rank = payload["best_rank"]
-                    self.best_key = payload["best_key"]
+                if (type(payload) is not dict or payload.get("journal_sequence") != event.sequence - 1
+                        or payload.get("journal_head_hash") != event.previous_hash):
+                    raise ValueError("checkpoint journal prefix mismatch")
+                if (attachment is None or previous_commit is None or pending_step is not None
+                        or event.event_id != f"CHECKPOINT_SNAPSHOT:{cell.identity_id}:{checkpoint_sequence}"):
+                    raise ValueError("checkpoint sequence or state boundary mismatch")
+                expected = {
+                    "schema": "stage5a2_checkpoint_v1", "checkpoint_sequence": checkpoint_sequence,
+                    "pair_identity_id": pair.identity_id, "cell_identity_id": cell.identity_id,
+                    "population_sha256": attachment["population_sha256"],
+                    "representation_sha256": attachment["representation_sha256"],
+                    "journal_sequence": event.sequence - 1, "journal_head_hash": event.previous_hash,
+                    "state": previous_commit["state"],
+                    "state_sha256": hashlib.sha256(previous_commit["state"]).hexdigest(),
+                    "rng_ordinal": previous_commit["rng_ordinal"], "no_progress": previous_commit["no_progress"],
+                }
+                if payload != expected:
+                    raise ValueError("checkpoint identity or state differs from journal prefix")
+                checkpoint_sequence += 1
+            elif event.event_type == "EVALUATION_INTENT":
+                payload = event.payload
+                key = payload["key"]
+                suffix = hashlib.sha256(encode_typed(key)).hexdigest()
+                if (key in intents or key in self.results or payload["step_id"] != pending_step
+                        or pending_step is None or payload["ordinal"] != len(self.trace) + 1
+                        or canonical_key_tokens(payload["physical"]) != key
+                        or event.event_id != f"EVALUATION_INTENT:{cell.identity_id}:{suffix}"):
+                    raise ValueError("evaluation intent differs from pending journal transition")
+                intents[key] = payload
             elif event.event_type == "EVALUATOR_ATTEMPT_STARTED":
-                self.attempts[event.payload["key"]] = event.payload["attempt"] + 1
+                payload = event.payload
+                key = payload["key"]
+                attempt = self.attempts.get(key, 0)
+                suffix = hashlib.sha256(encode_typed(key)).hexdigest()
+                if (key not in intents or key in self.results or payload["attempt"] != attempt
+                        or event.event_id != f"EVALUATOR_ATTEMPT_STARTED:{cell.identity_id}:{suffix}:{attempt}"):
+                    raise ValueError("evaluator attempt differs from pending intent")
+                self.attempts[key] = attempt + 1
+            elif event.event_type == "EVALUATION_RESULT_COMMITTED":
+                payload = event.payload
+                if (invalid_seen or payload["key"] in self.results
+                        or payload["ordinal"] != len(self.trace) + 1
+                        or canonical_key_tokens(payload["physical"]) != payload["key"]):
+                    raise ValueError("invalid, duplicate or gapped durable FE ledger")
+                if payload["status"] == "INVALID_RECORD":
+                    invalid_seen = True
+                    if payload["rank"] is not None:
+                        raise ValueError("invalid result has rank in FE ledger")
+                else:
+                    validate_candidate(payload["result"], vector=payload["physical"], ordinal=payload["ordinal"],
+                                       topology=pair.topology, grid_sha256=pair.grid_sha256)
+                    rank = GeometryFirstComparator().rank_key(payload["result"])
+                    if payload["status"] != payload["result"]["evaluation_status"] or payload["rank"] != rank:
+                        raise ValueError("result rank/status differs from FE ledger")
+                    if self.best_rank is None or rank < self.best_rank:
+                        self.best_rank, self.best_key = rank, payload["key"]
+                if payload["best_rank"] != self.best_rank or payload["best_key"] != self.best_key:
+                    raise ValueError("best rank/key differs from FE ledger")
+                intent = intents.get(payload["key"])
+                suffix = hashlib.sha256(encode_typed(payload["key"])).hexdigest()
+                if (intent is None or not self.attempts.get(payload["key"])
+                        or payload["step_id"] != pending_step
+                        or event.event_id != f"EVALUATION_RESULT_COMMITTED:{cell.identity_id}:{suffix}"
+                        or any(encode_typed(payload[name]) != encode_typed(intent[name])
+                               for name in ("key", "physical", "ordinal", "step_id", "proposal_index"))):
+                    raise ValueError("evaluation result differs from pending intent/attempt")
+                self.results[payload["key"]] = payload
+                durable_keys.add(payload["key"])
+                self.trace.append(payload)
+        self.checkpoint_sequence = checkpoint_sequence
+
+    def checkpoint(self):
+        """Atomically record a snapshot of the current committed step prefix."""
+        if self.initializing:
+            raise ValueError("checkpoint requires committed initialization")
+        starts = commits = 0
+        commit = tail = attachment = None
+        for event in self.journal.iter_events():
+            tail = event
+            if event.event_type == "OPTIMIZER_STEP_STARTED":
+                starts += 1
+            elif event.event_type == "OPTIMIZER_STEP_COMMITTED":
+                commits += 1
+                commit = event.payload
+            elif event.event_type == "POPULATION_ATTACHMENT_ATTACHED":
+                if attachment is not None:
+                    raise ValueError("checkpoint requires one population attachment")
+                attachment = event.payload
+        if commit is None or starts != commits:
+            raise ValueError("checkpoint requires a committed optimizer boundary")
+        if (snapshot(self.backend) != commit["state"] or self.rng.ordinal != commit["rng_ordinal"]
+                or self.no_progress != commit["no_progress"]):
+            raise ValueError("checkpoint state differs from committed optimizer boundary")
+        if attachment is None or tail is None:
+            raise ValueError("checkpoint requires one population attachment")
+        payload = {
+            "schema": "stage5a2_checkpoint_v1", "checkpoint_sequence": self.checkpoint_sequence,
+            "pair_identity_id": self.pair.identity_id, "cell_identity_id": self.cell.identity_id,
+            "population_sha256": attachment["population_sha256"],
+            "representation_sha256": attachment["representation_sha256"],
+            "journal_sequence": tail.sequence, "journal_head_hash": tail.event_hash,
+            "state": commit["state"], "state_sha256": hashlib.sha256(commit["state"]).hexdigest(),
+            "rng_ordinal": self.rng.ordinal, "no_progress": self.no_progress,
+        }
+        self._event(str(self.checkpoint_sequence), "CHECKPOINT_SNAPSHOT", payload)
+        self.checkpoint_sequence += 1
+        return payload
 
     def _before_draw(self):
         if self.no_progress >= 65536:
@@ -260,6 +429,52 @@ class ArmSession:
             self.step_index += 1
             self.status = "SEARCHING"
         return True
+
+    def hydrate_committed_steps(self):
+        """Restore the contiguous durable post-initialization step prefix.
+
+        A pending step is deliberately left for source-control-flow replay.
+        """
+        if self.initializing:
+            raise ValueError("initialization must be restored first")
+        started = set()
+        last_commit = None
+        commit_count = 0
+        terminal_status = None
+        for event in self.journal.iter_events():
+            if event.event_type == "OPTIMIZER_STEP_STARTED":
+                started.add(event.event_id)
+            elif (event.event_type == "OPTIMIZER_STEP_COMMITTED"
+                  and event.event_id != f"OPTIMIZER_STEP_COMMITTED:{self.cell.identity_id}:initialization"):
+                step_id = f"step:{commit_count}"
+                if event.event_id != f"OPTIMIZER_STEP_COMMITTED:{self.cell.identity_id}:{step_id}":
+                    raise ValueError("noncontiguous optimizer step commits")
+                if f"OPTIMIZER_STEP_STARTED:{self.cell.identity_id}:{step_id}" not in started:
+                    raise ValueError("optimizer step commit has no pre-state")
+                last_commit = event.payload
+                commit_count += 1
+            elif event.event_type == "CELL_TERMINAL_STATUS_COMMITTED":
+                terminal_status = event.payload["status"]
+        if last_commit is not None:
+            restore(self.backend, last_commit["state"])
+            self.rng.ordinal = last_commit["rng_ordinal"]
+            self.no_progress = last_commit["no_progress"]
+            self.step_index = commit_count
+        if terminal_status is not None:
+            self.status = terminal_status
+        elif last_commit is not None:
+            # A crash can occur after the optimizer commit and before the
+            # search-only terminal event. Reconcile without rerunning the step.
+            status = "SEARCHING"
+            if self.cell.role == "controlled_de" and self.backend.status != "SEARCHING":
+                status = self.backend.status
+            if self.no_progress >= 65536:
+                status = "BUDGET_STALLED"
+            if self.backend.unique_evaluations == 4096:
+                status = "SEARCH_BUDGET_REACHED"
+            if status != "SEARCHING":
+                self._event(f"step:{self.step_index - 1}", "CELL_TERMINAL_STATUS_COMMITTED", {"status": status})
+                self.status = status
 
     def step(self):
         if self.initializing or self.status != "SEARCHING":

@@ -60,6 +60,36 @@ from sawopt.studies.stage5a2.rng import (
 ROOT = Path(__file__).resolve().parents[3]
 
 
+def test_journal_streaming_verifies_full_chain_without_fetchall(tmp_path, monkeypatch):
+    journal = SQLiteJournal(tmp_path / "stream.sqlite", "stream", "controlled_de")
+    for index in range(3):
+        journal.append_event(str(index), "TEST", {"index": index})
+    original = journal._connection
+    class ConnectionProxy:
+        def __init__(self, connection):
+            self.connection = connection
+        def execute(self, sql, *args):
+            cursor = self.connection.execute(sql, *args)
+            if sql == "SELECT * FROM events ORDER BY sequence":
+                class CursorProxy:
+                    def __iter__(self):
+                        return iter(cursor)
+                    def fetchall(self):
+                        pytest.fail("full event history materialized")
+                return CursorProxy()
+            return cursor
+        def __getattr__(self, name):
+            return getattr(self.connection, name)
+    monkeypatch.setattr(journal, "_connection", lambda: ConnectionProxy(original()))
+    assert [event.payload["index"] for event in journal.iter_events()] == [0, 1, 2]
+    with sqlite3.connect(journal.path) as connection:
+        connection.execute("UPDATE events SET payload=? WHERE sequence=2", (b"corrupt",))
+    with pytest.raises(JournalError):
+        tuple(journal.iter_events())
+    with pytest.raises(JournalError, match="unusable"):
+        journal.append_event("later", "TEST", {})
+
+
 def _digest(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
