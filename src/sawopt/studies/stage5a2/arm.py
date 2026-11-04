@@ -100,7 +100,7 @@ class ArmSession:
         checkpoint_sequence = 0
         attachment = None
         intents = {}
-        for event in journal.events():
+        for event in journal.iter_events():
             if event.event_type == "POPULATION_ATTACHMENT_ATTACHED":
                 if attachment is not None:
                     raise ValueError("duplicate population attachment")
@@ -223,24 +223,32 @@ class ArmSession:
         """Atomically record a snapshot of the current committed step prefix."""
         if self.initializing:
             raise ValueError("checkpoint requires committed initialization")
-        events = self.journal.events()
-        starts = [e for e in events if e.event_type == "OPTIMIZER_STEP_STARTED"]
-        commits = [e for e in events if e.event_type == "OPTIMIZER_STEP_COMMITTED"]
-        if not commits or len(starts) != len(commits):
+        starts = commits = 0
+        commit = tail = attachment = None
+        for event in self.journal.iter_events():
+            tail = event
+            if event.event_type == "OPTIMIZER_STEP_STARTED":
+                starts += 1
+            elif event.event_type == "OPTIMIZER_STEP_COMMITTED":
+                commits += 1
+                commit = event.payload
+            elif event.event_type == "POPULATION_ATTACHMENT_ATTACHED":
+                if attachment is not None:
+                    raise ValueError("checkpoint requires one population attachment")
+                attachment = event.payload
+        if commit is None or starts != commits:
             raise ValueError("checkpoint requires a committed optimizer boundary")
-        commit = commits[-1].payload
         if (snapshot(self.backend) != commit["state"] or self.rng.ordinal != commit["rng_ordinal"]
                 or self.no_progress != commit["no_progress"]):
             raise ValueError("checkpoint state differs from committed optimizer boundary")
-        attachments = [e.payload for e in events if e.event_type == "POPULATION_ATTACHMENT_ATTACHED"]
-        if len(attachments) != 1:
+        if attachment is None or tail is None:
             raise ValueError("checkpoint requires one population attachment")
         payload = {
             "schema": "stage5a2_checkpoint_v1", "checkpoint_sequence": self.checkpoint_sequence,
             "pair_identity_id": self.pair.identity_id, "cell_identity_id": self.cell.identity_id,
-            "population_sha256": attachments[0]["population_sha256"],
-            "representation_sha256": attachments[0]["representation_sha256"],
-            "journal_sequence": events[-1].sequence, "journal_head_hash": events[-1].event_hash,
+            "population_sha256": attachment["population_sha256"],
+            "representation_sha256": attachment["representation_sha256"],
+            "journal_sequence": tail.sequence, "journal_head_hash": tail.event_hash,
             "state": commit["state"], "state_sha256": hashlib.sha256(commit["state"]).hexdigest(),
             "rng_ordinal": self.rng.ordinal, "no_progress": self.no_progress,
         }
@@ -413,26 +421,32 @@ class ArmSession:
         """
         if self.initializing:
             raise ValueError("initialization must be restored first")
-        events = self.journal.events()
-        commits = [event for event in events if event.event_type == "OPTIMIZER_STEP_COMMITTED"
-                   and event.event_id != f"OPTIMIZER_STEP_COMMITTED:{self.cell.identity_id}:initialization"]
-        for index, event in enumerate(commits):
-            step_id = f"step:{index}"
-            if event.event_id != f"OPTIMIZER_STEP_COMMITTED:{self.cell.identity_id}:{step_id}":
-                raise ValueError("noncontiguous optimizer step commits")
-            if self.journal.get_event(f"OPTIMIZER_STEP_STARTED:{self.cell.identity_id}:{step_id}") is None:
-                raise ValueError("optimizer step commit has no pre-state")
-        if commits:
-            payload = commits[-1].payload
-            restore(self.backend, payload["state"])
-            self.rng.ordinal = payload["rng_ordinal"]
-            self.no_progress = payload["no_progress"]
-            self.step_index = len(commits)
-        terminals = [event.payload["status"] for event in events
-                     if event.event_type == "CELL_TERMINAL_STATUS_COMMITTED"]
-        if terminals:
-            self.status = terminals[-1]
-        elif commits:
+        started = set()
+        last_commit = None
+        commit_count = 0
+        terminal_status = None
+        for event in self.journal.iter_events():
+            if event.event_type == "OPTIMIZER_STEP_STARTED":
+                started.add(event.event_id)
+            elif (event.event_type == "OPTIMIZER_STEP_COMMITTED"
+                  and event.event_id != f"OPTIMIZER_STEP_COMMITTED:{self.cell.identity_id}:initialization"):
+                step_id = f"step:{commit_count}"
+                if event.event_id != f"OPTIMIZER_STEP_COMMITTED:{self.cell.identity_id}:{step_id}":
+                    raise ValueError("noncontiguous optimizer step commits")
+                if f"OPTIMIZER_STEP_STARTED:{self.cell.identity_id}:{step_id}" not in started:
+                    raise ValueError("optimizer step commit has no pre-state")
+                last_commit = event.payload
+                commit_count += 1
+            elif event.event_type == "CELL_TERMINAL_STATUS_COMMITTED":
+                terminal_status = event.payload["status"]
+        if last_commit is not None:
+            restore(self.backend, last_commit["state"])
+            self.rng.ordinal = last_commit["rng_ordinal"]
+            self.no_progress = last_commit["no_progress"]
+            self.step_index = commit_count
+        if terminal_status is not None:
+            self.status = terminal_status
+        elif last_commit is not None:
             # A crash can occur after the optimizer commit and before the
             # search-only terminal event. Reconcile without rerunning the step.
             status = "SEARCHING"

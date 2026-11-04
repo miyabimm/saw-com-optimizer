@@ -176,3 +176,24 @@ checkpoint/validation recovery and actual full-horizon parity remain pending.
 The missing-intent corruption check was RED at `34ada98`; after adding the
 intent/attempt/result prefix checks it, rank mismatch, evaluator retry, partial
 initialization and both trajectory cases passed (6 tests in 236.24 s).
+
+### Large-journal recovery memory
+
+A bounded local COM-free fixture cost probe (not a full-horizon run) measured
+57.20 s to initialize; 10 search steps took 24.29 s for L-SHADE and 34.66 s
+for DE. The respective SQLite main files were 103,223,296 and 210,690,048
+bytes after those steps. Host available memory was about 5.9 GiB. These are
+observations at 244 FE, not a forecast or a substitute for the requested
+4,096-FE parity. They exposed the existing full-journal `fetchall()`/tuple
+materialization as a concrete recovery memory risk.
+
+Journal open, identity/preflight validation, RNG reload, arm reload and step
+hydration now consume the complete hash-verified chain incrementally. The
+public `events()` still returns the original tuple, and the verified append tail
+is updated only after the iterator is exhausted; corruption remains fail
+closed. This does not reduce SQLite durability, snapshot content, or scientific
+checks. A proxy-based RED/GREEN test rejects `fetchall`, then checks detection
+of mid-chain corruption and prevention of further append. The foundation suite,
+checkpoint recovery and both trajectory cases passed (69 tests / 253.14 s).
+The time and storage needed for full-horizon parity remain unmeasured and the
+large-journal change alone does not establish that parity.

@@ -131,7 +131,7 @@ class SQLiteJournal:
     def _verify_event_chain(cls, connection: sqlite3.Connection) -> tuple[int, str]:
         previous_hash = ""
         expected_sequence = 1
-        for row in connection.execute("SELECT * FROM events ORDER BY sequence").fetchall():
+        for row in connection.execute("SELECT * FROM events ORDER BY sequence"):
             sequence = int(row["sequence"])
             payload = bytes(row["payload"])
             if sequence != expected_sequence or row["previous_hash"] != previous_hash:
@@ -418,14 +418,17 @@ class SQLiteJournal:
         finally:
             connection.close()
 
-    def events(self) -> tuple[JournalEvent, ...]:
+    def iter_events(self) -> Iterable[JournalEvent]:
+        """Verify events in order without materializing the complete journal.
+
+        Consumers must exhaust the iterator before trusting the complete chain;
+        the appendable verified tail advances only after full verification.
+        """
         connection = self._connection()
         try:
-            rows = connection.execute("SELECT * FROM events ORDER BY sequence").fetchall()
-            events: list[JournalEvent] = []
             previous_hash = ""
             expected_sequence = 1
-            for row in rows:
+            for row in connection.execute("SELECT * FROM events ORDER BY sequence"):
                 sequence = int(row["sequence"])
                 payload = bytes(row["payload"])
                 if sequence != expected_sequence or row["previous_hash"] != previous_hash:
@@ -435,14 +438,13 @@ class SQLiteJournal:
                 )
                 if row["event_hash"] != expected_hash:
                     raise JournalError("journal event hash mismatch")
-                events.append(JournalEvent(
+                yield JournalEvent(
                     sequence, row["event_id"], row["event_type"], decode_typed(payload),
                     previous_hash, expected_hash,
-                ))
+                )
                 previous_hash = expected_hash
                 expected_sequence += 1
             self._verified_tail = (expected_sequence - 1, previous_hash)
-            return tuple(events)
         except (JournalError, ValueError, TypeError, sqlite3.Error) as exc:
             self._integrity_error = str(exc)
             if isinstance(exc, JournalError):
@@ -451,12 +453,16 @@ class SQLiteJournal:
         finally:
             connection.close()
 
+    def events(self) -> tuple[JournalEvent, ...]:
+        return tuple(self.iter_events())
+
     def verify_genesis_records(self, pair, roster) -> None:
         if self.get_immutable_record("pair_identity", pair.identity_id) != pair.canonical_bytes:
             raise JournalError("pair identity read-back mismatch")
         if self.get_immutable_record("genesis_roster", roster.roster_hash) != roster.canonical_bytes:
             raise JournalError("genesis roster read-back mismatch")
-        self.events()  # verifies complete chain, including genesis and barrier records
+        for _ in self.iter_events():  # verify genesis, barrier and complete tail
+            pass
 
 
 __all__ = ["JOURNAL_SCHEMA", "JournalError", "JournalEvent", "SQLiteJournal"]
