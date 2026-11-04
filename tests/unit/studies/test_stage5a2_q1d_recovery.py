@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from sawopt.optimization.selection import GeometryFirstComparator
 from sawopt.studies.stage5a2.arm import ArmSession
 from sawopt.studies.stage5a2.codec import encode_typed
 from sawopt.studies.stage5a2.journal import JournalError, SQLiteJournal
@@ -414,6 +415,29 @@ def test_hash_valid_snapshot_cache_result_mismatch_fails_before_hydration(initia
     monkeypatch.setattr("sawopt.studies.stage5a2.arm.restore",
                         lambda *args: pytest.fail("hydration before result validation"))
     with pytest.raises(ValueError, match="snapshot.*result.*ledger"):
+        prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
+                     geometry_valid=lambda v: pytest.fail("sampler reentered"),
+                     evaluators=(lambda *args: pytest.fail("evaluator dispatched"),) * 2)
+
+
+def test_hash_valid_result_without_intent_fails_before_hydration(initialized_pair, monkeypatch):
+    metadata, pair, genesis, _, _, arms = initialized_pair
+    arm = arms[1]
+    physical = arm.backend.population[0].physical.copy()
+    physical[0] += 0.001
+    key = canonical_key_tokens(physical)
+    result = candidate(physical, 235, pair=pair)
+    rank = GeometryFirstComparator().rank_key(result)
+    better = arm.best_rank is None or rank < arm.best_rank
+    arm._event("forged", "EVALUATION_RESULT_COMMITTED", {
+        "key": key, "physical": physical, "ordinal": 235, "step_id": "step:0",
+        "proposal_index": 1, "result": result, "status": "PHYSICS_EVALUATED",
+        "rank": rank, "best_rank": rank if better else arm.best_rank,
+        "best_key": key if better else arm.best_key, "pending_target": None,
+    })
+    monkeypatch.setattr("sawopt.studies.stage5a2.arm.restore",
+                        lambda *args: pytest.fail("hydration before intent validation"))
+    with pytest.raises(ValueError, match="result.*intent"):
         prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
                      geometry_valid=lambda v: pytest.fail("sampler reentered"),
                      evaluators=(lambda *args: pytest.fail("evaluator dispatched"),) * 2)

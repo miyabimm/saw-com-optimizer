@@ -99,6 +99,7 @@ class ArmSession:
         next_step = 0
         checkpoint_sequence = 0
         attachment = None
+        intents = {}
         for event in journal.events():
             if event.event_type == "POPULATION_ATTACHMENT_ATTACHED":
                 if attachment is not None:
@@ -166,6 +167,25 @@ class ArmSession:
                 if payload != expected:
                     raise ValueError("checkpoint identity or state differs from journal prefix")
                 checkpoint_sequence += 1
+            elif event.event_type == "EVALUATION_INTENT":
+                payload = event.payload
+                key = payload["key"]
+                suffix = hashlib.sha256(encode_typed(key)).hexdigest()
+                if (key in intents or key in self.results or payload["step_id"] != pending_step
+                        or pending_step is None or payload["ordinal"] != len(self.trace) + 1
+                        or canonical_key_tokens(payload["physical"]) != key
+                        or event.event_id != f"EVALUATION_INTENT:{cell.identity_id}:{suffix}"):
+                    raise ValueError("evaluation intent differs from pending journal transition")
+                intents[key] = payload
+            elif event.event_type == "EVALUATOR_ATTEMPT_STARTED":
+                payload = event.payload
+                key = payload["key"]
+                attempt = self.attempts.get(key, 0)
+                suffix = hashlib.sha256(encode_typed(key)).hexdigest()
+                if (key not in intents or key in self.results or payload["attempt"] != attempt
+                        or event.event_id != f"EVALUATOR_ATTEMPT_STARTED:{cell.identity_id}:{suffix}:{attempt}"):
+                    raise ValueError("evaluator attempt differs from pending intent")
+                self.attempts[key] = attempt + 1
             elif event.event_type == "EVALUATION_RESULT_COMMITTED":
                 payload = event.payload
                 if (invalid_seen or payload["key"] in self.results
@@ -186,11 +206,17 @@ class ArmSession:
                         self.best_rank, self.best_key = rank, payload["key"]
                 if payload["best_rank"] != self.best_rank or payload["best_key"] != self.best_key:
                     raise ValueError("best rank/key differs from FE ledger")
+                intent = intents.get(payload["key"])
+                suffix = hashlib.sha256(encode_typed(payload["key"])).hexdigest()
+                if (intent is None or not self.attempts.get(payload["key"])
+                        or payload["step_id"] != pending_step
+                        or event.event_id != f"EVALUATION_RESULT_COMMITTED:{cell.identity_id}:{suffix}"
+                        or any(encode_typed(payload[name]) != encode_typed(intent[name])
+                               for name in ("key", "physical", "ordinal", "step_id", "proposal_index"))):
+                    raise ValueError("evaluation result differs from pending intent/attempt")
                 self.results[payload["key"]] = payload
                 durable_keys.add(payload["key"])
                 self.trace.append(payload)
-            elif event.event_type == "EVALUATOR_ATTEMPT_STARTED":
-                self.attempts[event.payload["key"]] = event.payload["attempt"] + 1
         self.checkpoint_sequence = checkpoint_sequence
 
     def checkpoint(self):
