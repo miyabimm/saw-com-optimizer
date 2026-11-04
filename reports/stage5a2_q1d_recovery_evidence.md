@@ -18,6 +18,7 @@ representative local checks, not the required full Q1-D matrix.
 | RNG STARTED / lost NumPy return | Pending call is regenerated from its pre-state under the same ID. | DE synthetic fixture interrupts before and after physical RNG invocation; one START and one COMMIT for the logical call on new-session replay. |
 | Evaluator interruption | No FE until result; a repeated physical attempt is not a modeled physics failure. | DE fixture records two identical physical attempts, one infrastructure interruption and one committed 235th result/FE. |
 | Proposal committed before intent | Generate the same intent without redrawing committed RNG. | DE fresh-session fixture reproduces the proposal's physical bits, does not invoke the RNG and commits one FE. |
+| DE duplicate transaction | Replay a committed duplicate with its retry/counters exactly once and complete the pending target. | A forced first duplicate is interrupted after its atomic journal transaction; fresh-session replay records one duplicate, retry indices 0/1, two proposals, one pending target and one additional FE. |
 | L-SHADE duplicate/fallback, zero-FE step | Replay all committed RNG and duplicate proposals, preserve zero FE, commit the step once. | An injected duplicate-only canonicalizer forces six normal and 256 fallback attempts; fresh-session replay reproduces the exact post-state with no new draw/evaluation, then rereading the commit leaves the journal head unchanged. This is a forced boundary fixture, not a normal canonicalizer trajectory. |
 | Foreign pair identity | Fail before hydration/evaluation. | Altered config identity is rejected at genesis reconciliation. |
 | Journal corruption | Fail before evaluator dispatch. | A modified event payload is rejected on journal reopen before geometry/evaluator call. |
@@ -123,4 +124,6 @@ consistency require further work. Final exact-HEAD CI is still required.
 A separate fresh 234-member-per-arm initialization interruption test passed
 in 61.68 s; it does not establish every genesis or initialization boundary.
 The forced zero-FE fallback fresh-session test passed in 93.94 s including
-baseline setup; it does not cover successful fallback or later adaptation.
+baseline setup; it does not cover successful fallback or later adaptation. The
+forced DE duplicate transaction recovery test passed in 74.23 s including
+baseline setup; it does not cover the full watchdog or retry-cap matrix.

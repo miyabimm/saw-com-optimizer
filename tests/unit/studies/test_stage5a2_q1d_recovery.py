@@ -144,6 +144,41 @@ def test_recovery_seals_terminal_after_step_commit_before_status(tmp_path, monke
     assert len([e for e in journal.events() if e.event_type == "CELL_TERMINAL_STATUS_COMMITTED"]) == 1
 
 
+def test_de_duplicate_transaction_replays_in_fresh_session(initialized_pair, monkeypatch):
+    from sawopt.optimization.controlled_de import de_trial
+    metadata, pair, genesis, _, _, arms = initialized_pair
+    arm = arms[1]
+    def force_first_duplicate(parents, target, rng):
+        if rng.cursor == (0, 0, 0):  # sorted generation, retry, target
+            return parents[target].copy(), {}
+        return de_trial(parents, target, rng)
+    monkeypatch.setattr("sawopt.optimization.controlled_de.de_trial", force_first_duplicate)
+    commit = arm.journal.commit_records
+    def crash_after_duplicate(records, events):
+        result = commit(records, events)
+        if any(kind == "DUPLICATE_DETECTED" for _, kind, _ in events):
+            raise RuntimeError("duplicate committed")
+        return result
+    monkeypatch.setattr(arm.journal, "commit_records", crash_after_duplicate)
+    with pytest.raises(RuntimeError, match="duplicate committed"):
+        arm.step()
+    assert len(arm.trace) == 234
+    evaluate = lambda v, o: candidate(v, o, pair=pair)
+    _, resumed = prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
+                              geometry_valid=lambda v: pytest.fail("sampler reentered"),
+                              evaluators=(evaluate, evaluate))
+    arm = resumed[1]
+    assert arm.step()
+    assert arm.backend.duplicate_count == 1 and arm.backend.proposals_total == 2
+    assert arm.backend.target == 1 and arm.backend.retry == 0 and len(arm.backend.pending) == 1
+    assert len(arm.trace) == arm.backend.unique_evaluations == 235
+    events = arm.journal.events()
+    proposals = [event.payload for event in events if event.event_type == "PROPOSAL_ATTEMPT"]
+    assert [proposal["duplicate"] for proposal in proposals] == [True, False]
+    assert [proposal["retry"] for proposal in proposals] == [0, 1]
+    assert sum(event.event_type == "DUPLICATE_DETECTED" for event in events) == 1
+
+
 def test_lshade_zero_fe_fallback_replays_in_fresh_session(initialized_pair, monkeypatch):
     metadata, pair, genesis, _, _, arms = initialized_pair
     arm = arms[0]
