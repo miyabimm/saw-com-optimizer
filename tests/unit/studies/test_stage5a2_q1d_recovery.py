@@ -336,6 +336,55 @@ def test_hash_valid_snapshot_fe_mismatch_fails_before_hydration(initialized_pair
                      evaluators=(lambda *args: pytest.fail("evaluator dispatched"),) * 2)
 
 
+def test_checkpoint_prefix_recovery_and_mismatch_refusal(initialized_pair, monkeypatch):
+    metadata, pair, genesis, _, _, arms = initialized_pair
+    arm = arms[1]
+    assert arm.step()
+    original = arm._event
+    def crash_before(suffix, kind, payload):
+        if kind == "CHECKPOINT_SNAPSHOT":
+            raise RuntimeError("before checkpoint")
+        return original(suffix, kind, payload)
+    arm._event = crash_before
+    with pytest.raises(RuntimeError, match="before checkpoint"):
+        arm.checkpoint()
+    assert not any(e.event_type == "CHECKPOINT_SNAPSHOT" for e in arm.journal.events())
+    def crash_after(suffix, kind, payload):
+        result = original(suffix, kind, payload)
+        if kind == "CHECKPOINT_SNAPSHOT":
+            raise RuntimeError("after checkpoint")
+        return result
+    arm._event = crash_after
+    with pytest.raises(RuntimeError, match="after checkpoint"):
+        arm.checkpoint()
+    checkpoints = [e for e in arm.journal.events() if e.event_type == "CHECKPOINT_SNAPSHOT"]
+    assert len(checkpoints) == 1
+    checkpoint = checkpoints[0].payload
+    evaluate = lambda v, o: candidate(v, o, pair=pair)
+    _, recovered = prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
+                                 geometry_valid=lambda v: pytest.fail("sampler reentered"),
+                                 evaluators=(evaluate, evaluate))
+    arm = recovered[1]
+    assert arm.checkpoint_sequence == 1 and arm.step_index == 1
+    assert arm.step()
+    expected = snapshot(arm.backend)
+    _, fresh = prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
+                             geometry_valid=lambda v: pytest.fail("sampler reentered"),
+                             evaluators=(evaluate, evaluate))
+    assert snapshot(fresh[1].backend) == expected
+    assert fresh[1].step_index == 2 and len(fresh[1].trace) == 236
+    # Hash-chain-valid event, but it claims a prefix head other than its actual
+    # immediate predecessor. It must be rejected before either arm hydrates.
+    bad = dict(checkpoint, checkpoint_sequence=1, journal_head_hash="f" * 64)
+    fresh[1]._event("1", "CHECKPOINT_SNAPSHOT", bad)
+    monkeypatch.setattr("sawopt.studies.stage5a2.arm.restore",
+                        lambda *args: pytest.fail("hydration before checkpoint validation"))
+    with pytest.raises(ValueError, match="checkpoint.*prefix"):
+        prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
+                     geometry_valid=lambda v: pytest.fail("sampler reentered"),
+                     evaluators=(lambda *args: pytest.fail("evaluator dispatched"),) * 2)
+
+
 def test_hash_valid_pending_step_prestate_mismatch_fails_before_hydration(initialized_pair, monkeypatch):
     metadata, pair, genesis, _, _, arms = initialized_pair
     arm = arms[1]

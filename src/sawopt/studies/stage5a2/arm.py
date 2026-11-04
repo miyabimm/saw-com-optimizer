@@ -97,8 +97,14 @@ class ArmSession:
         previous_commit = None
         pending_step = None
         next_step = 0
+        checkpoint_sequence = 0
+        attachment = None
         for event in journal.events():
-            if event.event_type == "RNG_DRAW_COMMITTED":
+            if event.event_type == "POPULATION_ATTACHMENT_ATTACHED":
+                if attachment is not None:
+                    raise ValueError("duplicate population attachment")
+                attachment = event.payload
+            elif event.event_type == "RNG_DRAW_COMMITTED":
                 rng_commits += 1
                 rng_state = event.payload["post_state"]
             elif event.event_type in {"OPTIMIZER_STEP_STARTED", "OPTIMIZER_STEP_COMMITTED"}:
@@ -139,6 +145,27 @@ class ArmSession:
                     previous_commit = event.payload
                     if step_id != "initialization":
                         next_step += 1
+            elif event.event_type == "CHECKPOINT_SNAPSHOT":
+                payload = event.payload
+                if (type(payload) is not dict or payload.get("journal_sequence") != event.sequence - 1
+                        or payload.get("journal_head_hash") != event.previous_hash):
+                    raise ValueError("checkpoint journal prefix mismatch")
+                if (attachment is None or previous_commit is None or pending_step is not None
+                        or event.event_id != f"CHECKPOINT_SNAPSHOT:{cell.identity_id}:{checkpoint_sequence}"):
+                    raise ValueError("checkpoint sequence or state boundary mismatch")
+                expected = {
+                    "schema": "stage5a2_checkpoint_v1", "checkpoint_sequence": checkpoint_sequence,
+                    "pair_identity_id": pair.identity_id, "cell_identity_id": cell.identity_id,
+                    "population_sha256": attachment["population_sha256"],
+                    "representation_sha256": attachment["representation_sha256"],
+                    "journal_sequence": event.sequence - 1, "journal_head_hash": event.previous_hash,
+                    "state": previous_commit["state"],
+                    "state_sha256": hashlib.sha256(previous_commit["state"]).hexdigest(),
+                    "rng_ordinal": previous_commit["rng_ordinal"], "no_progress": previous_commit["no_progress"],
+                }
+                if payload != expected:
+                    raise ValueError("checkpoint identity or state differs from journal prefix")
+                checkpoint_sequence += 1
             elif event.event_type == "EVALUATION_RESULT_COMMITTED":
                 payload = event.payload
                 if (invalid_seen or payload["key"] in self.results
@@ -164,6 +191,36 @@ class ArmSession:
                 self.trace.append(payload)
             elif event.event_type == "EVALUATOR_ATTEMPT_STARTED":
                 self.attempts[event.payload["key"]] = event.payload["attempt"] + 1
+        self.checkpoint_sequence = checkpoint_sequence
+
+    def checkpoint(self):
+        """Atomically record a snapshot of the current committed step prefix."""
+        if self.initializing:
+            raise ValueError("checkpoint requires committed initialization")
+        events = self.journal.events()
+        starts = [e for e in events if e.event_type == "OPTIMIZER_STEP_STARTED"]
+        commits = [e for e in events if e.event_type == "OPTIMIZER_STEP_COMMITTED"]
+        if not commits or len(starts) != len(commits):
+            raise ValueError("checkpoint requires a committed optimizer boundary")
+        commit = commits[-1].payload
+        if (snapshot(self.backend) != commit["state"] or self.rng.ordinal != commit["rng_ordinal"]
+                or self.no_progress != commit["no_progress"]):
+            raise ValueError("checkpoint state differs from committed optimizer boundary")
+        attachments = [e.payload for e in events if e.event_type == "POPULATION_ATTACHMENT_ATTACHED"]
+        if len(attachments) != 1:
+            raise ValueError("checkpoint requires one population attachment")
+        payload = {
+            "schema": "stage5a2_checkpoint_v1", "checkpoint_sequence": self.checkpoint_sequence,
+            "pair_identity_id": self.pair.identity_id, "cell_identity_id": self.cell.identity_id,
+            "population_sha256": attachments[0]["population_sha256"],
+            "representation_sha256": attachments[0]["representation_sha256"],
+            "journal_sequence": events[-1].sequence, "journal_head_hash": events[-1].event_hash,
+            "state": commit["state"], "state_sha256": hashlib.sha256(commit["state"]).hexdigest(),
+            "rng_ordinal": self.rng.ordinal, "no_progress": self.no_progress,
+        }
+        self._event(str(self.checkpoint_sequence), "CHECKPOINT_SNAPSHOT", payload)
+        self.checkpoint_sequence += 1
+        return payload
 
     def _before_draw(self):
         if self.no_progress >= 65536:

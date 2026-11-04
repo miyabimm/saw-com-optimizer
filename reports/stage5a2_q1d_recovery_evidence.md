@@ -24,6 +24,7 @@ representative local checks, not the required full Q1-D matrix.
 | Journal corruption | Fail before evaluator dispatch. | A modified event payload is rejected on journal reopen before geometry/evaluator call. |
 | Hash-valid inconsistent snapshot/result | Check identity, FE/cache/RNG prefix and result rank/best before hydration. | A post-state with an extra FE, a separate forged result rank, and a cache result changed while preserving its key set are rejected before either arm hydrates or evaluates. Both arm caches and population/pending records in snapshot START/COMMIT states are compared against committed prefix results; result rows are schema/rank/best checked on reload. |
 | Hash-valid pending-step pre-state | Require ordered START/COMMIT transitions and the exact immediately preceding committed snapshot, RNG ordinal and watchdog counter before hydration. | A DE snapshot with two population members swapped but valid cache, FE, results and RNG is rejected before either arm hydrates or evaluates; the baseline implementation failed this test. Genuine two-step two-arm parity and evaluator retry continue to pass. |
+| Checkpoint / journal prefix | Atomically snapshot only a committed optimizer boundary; verify identity, population, digest, sequence and prefix before hydration; replay a valid later journal tail. | Real SQLite DE fixture crashes before and after checkpoint insertion, confirms zero/one event, resumes with next sequence, adds a search step and verifies stale-checkpoint recovery. A hash-valid wrong-head checkpoint is refused before either arm hydrates. Resume currently rebuilds from verified optimizer events, not by loading the checkpoint as an acceleration. |
 | 4096-FE step commit before terminal event | Restore without rerunning and seal one search-only terminal status. | Minimal mocked-state SQLite transition fixture verifies one durable terminal event, no extra state/FE/RNG; this is not a 4096-FE trajectory test. |
 
 The uninterrupted comparison is deliberately bounded to two search steps;
@@ -43,7 +44,7 @@ outstanding.
 | Primary gate | Local evidence | Still pending; not `LOCAL_EVIDENCE_READY` |
 |---|---|---|
 | Q1-12 | Typed modeled/invalid outcomes, infrastructure retry, partial initialization and selected mismatch refusals. | Full failure taxonomy, checkpoint/journal mismatch and exhaustion paths. |
-| Q1-16 | Selected genesis/RNG foundation cases, partial initialization, proposal/duplicate/result replay, forced zero-FE fallback and committed-step prefix. | Complete distinct transaction table, cursor/checkpoint/validation, memory flush/archive trim and terminal full-horizon recovery. |
+| Q1-16 | Selected genesis/RNG foundation cases, partial initialization, proposal/duplicate/result replay, forced zero-FE fallback, committed-step prefix and checkpoint before/after-commit recovery. | Complete distinct transaction table, remaining cursor/checkpoint/validation paths, memory flush/archive trim and terminal full-horizon recovery. |
 | Q1-19 | Two-step both-arm typed event/state/trace/top-16 comparison; durable FE/result/rank consistency checks. | Complete trace/counter reconciliation and actual full-horizon both-arm parity. |
 
 ## Reproducible bounded trajectory fingerprints
@@ -167,3 +168,7 @@ both two-step trajectory cases and evaluator retry passed (5 in 140.68 s).
 This is not proof of all pending cursor, checkpoint, or terminal consistency.
 The expanded two-arm parity test passed (2 in 131.21 s including setup); the
 L-SHADE check explicitly requires nonempty archive/success batch and shrink.
+The Q1-D file passed 20 tests in 487.10 s before expanding the checkpoint
+fault test. The expanded checkpoint test then passed in 138.49 s including
+setup. Checkpoints are optional journal records at committed boundaries; other
+checkpoint/validation recovery and actual full-horizon parity remain pending.
