@@ -178,6 +178,125 @@ The missing-intent corruption check was RED at `34ada98`; after adding the
 intent/attempt/result prefix checks it, rank mismatch, evaluator retry, partial
 initialization and both trajectory cases passed (6 tests in 236.24 s).
 
+### 254-FE journal capacity attribution (owner-authorized diagnostic)
+
+**Conclusion:** the dominant cost is full pre- and post-step optimizer states,
+not `CHECKPOINT_SNAPSHOT`: the latter was absent in this fixture. At 20 steps
+and 254 FE, START + COMMIT represent **98.91% of L-SHADE** and **97.17% of
+DE** event payload bytes. The one DE generation snapshot adds 2.34%. This is
+one early synthetic fixture, not an estimate of later state growth.
+
+Reproduce from the repository root using
+`uv run --locked python -m tools.diagnostics.q1d_storage_probe`. The probe
+creates and deletes only its private temporary SQLite files, takes up to 20
+steps/arm and retains the 2,000,000,000-byte and 5,000,000,000-byte
+free-space checks between steps (not an instantaneous write quota). It reads
+journal events with a read-only SQLite connection; it never saves compressed
+payloads or changes the journal. The `SUMMARY` JSON includes every event type,
+count, total/average/maximum payload bytes, percentage, last-snapshot fields,
+file sizes and compression data. Code under test was `c223214` plus the
+probe extension in this commit; measured probe SHA-256
+`d8484c235a38338db73cd00a16b6ceef2236f6f9e7be4fff0d31a9a3afd9b1ad`;
+fixture and lock hashes are recorded above. Python 3.12.3, NumPy 2.5.3,
+Linux WSL2 x86_64/glibc 2.39; free space initially 1,007,161,815,040 bytes.
+Each arm independently evaluated 234 initial members and 20 search steps.
+The 21 START and 21 COMMIT events per arm include initialization.
+
+Event statistics below are **payload bytes only**, with percentage relative to
+that arm's total event payload, not total file size. Averages are rounded to
+whole bytes; zero rows are included explicitly for the requested event types.
+
+| Arm / event type | Count | Total bytes | Mean bytes | Max bytes | Payload % |
+|---|---:|---:|---:|---:|---:|
+| L-SHADE CELL_IDENTITY_COMMITTED | 1 | 687 | 687 | 687 | 0.0003 |
+| L-SHADE CHECKPOINT_SNAPSHOT | 0 | 0 | 0 | 0 | 0 |
+| L-SHADE EVALUATION_INTENT | 254 | 212,848 | 838 | 839 | 0.1067 |
+| L-SHADE EVALUATION_RESULT_COMMITTED | 254 | 1,262,776 | 4,972 | 4,973 | 0.6333 |
+| L-SHADE EVALUATOR_ATTEMPT_STARTED | 254 | 136,144 | 536 | 536 | 0.0683 |
+| L-SHADE GENERATION_SNAPSHOT_COMMITTED | 0 | 0 | 0 | 0 | 0 |
+| L-SHADE INITIALIZATION_MEMBER_COMMITTED | 234 | 31,498 | 135 | 136 | 0.0158 |
+| L-SHADE INITIALIZATION_PREFLIGHT_CERTIFICATE | 1 | 798 | 798 | 798 | 0.0004 |
+| L-SHADE OPTIMIZER_STEP_COMMITTED | 21 | 101,037,193 | 4,811,295 | 4,918,502 | 50.6730 |
+| L-SHADE OPTIMIZER_STEP_STARTED | 21 | 96,186,715 | 4,580,320 | 4,918,502 | 48.2403 |
+| L-SHADE POPULATION_ATTACHMENT_ATTACHED | 1 | 649 | 649 | 649 | 0.0003 |
+| L-SHADE PROPOSAL_ATTEMPT | 20 | 25,207 | 1,260 | 1,261 | 0.0126 |
+| L-SHADE RNG_DRAW_COMMITTED | 162 | 158,190 | 976 | 1,151 | 0.0793 |
+| L-SHADE RNG_DRAW_STARTED | 162 | 337,904 | 2,086 | 6,365 | 0.1695 |
+| DE CELL_IDENTITY_COMMITTED | 1 | 694 | 694 | 694 | 0.0002 |
+| DE CHECKPOINT_SNAPSHOT | 0 | 0 | 0 | 0 | 0 |
+| DE EVALUATION_INTENT | 254 | 212,848 | 838 | 839 | 0.0518 |
+| DE EVALUATION_RESULT_COMMITTED | 254 | 1,269,557 | 4,998 | 5,306 | 0.3091 |
+| DE EVALUATOR_ATTEMPT_STARTED | 254 | 136,144 | 536 | 536 | 0.0331 |
+| DE GENERATION_SNAPSHOT_COMMITTED | 1 | 9,628,882 | 9,628,882 | 9,628,882 | 2.3442 |
+| DE INITIALIZATION_MEMBER_COMMITTED | 234 | 31,498 | 135 | 136 | 0.0077 |
+| DE INITIALIZATION_PREFLIGHT_CERTIFICATE | 1 | 805 | 805 | 805 | 0.0002 |
+| DE OPTIMIZER_STEP_COMMITTED | 21 | 204,643,223 | 9,744,915 | 10,172,211 | 49.8222 |
+| DE OPTIMIZER_STEP_STARTED | 21 | 194,475,206 | 9,260,724 | 10,145,047 | 47.3467 |
+| DE POPULATION_ATTACHMENT_ATTACHED | 1 | 656 | 656 | 656 | 0.0002 |
+| DE PROPOSAL_ATTEMPT | 20 | 34,705 | 1,735 | 1,738 | 0.0084 |
+| DE RNG_DRAW_COMMITTED | 60 | 127,860 | 2,131 | 4,283 | 0.0311 |
+| DE RNG_DRAW_STARTED | 60 | 184,680 | 3,078 | 6,421 | 0.0450 |
+
+At the quiescent measurement, L-SHADE SQLite main/WAL/SHM were
+200,540,160 / 0 / 0 bytes and payloads totaled 199,390,609; DE was
+411,959,296 / 0 / 0 and payloads totaled 410,746,758. Thus the respective
+main-file minus payload differences were 1,149,551 and 1,212,538 bytes; those
+include SQLite pages/indexes, immutable records and other non-payload content,
+not just pure filesystem overhead. WAL absence at this instant is not a claim
+that WAL is never used. The separate pair DB was 2,191,360 bytes.
+
+**Last committed live-state field attribution:** Each number is the canonical
+JSON size of one complete packed field entry including its key/wrappers;
+shared envelope and separators are excluded, so fields do not quite sum to the
+snapshot length. L-SHADE snapshot 3,655,926 bytes: `_population` 2,306,096;
+`_history_rank_index` 798,378; `_cache_frequency_versions` 318,180; `_cache`
+158,455; `_historical_finalist_keys` 18,857; `population_trace` 12,004;
+`archive_trace` 11,896; `best_so_far_trace` 2,006. DE snapshot 7,629,061:
+`cache` 2,513,120; `population` 2,451,898; `parents` 2,451,895;
+`pending` 209,711. DE has no snapshot fields named history or trace, and
+L-SHADE has no `parents` or `pending` fields; the arm's separate journal/trace
+ledger is not silently counted as a snapshot field. The DE cache/population/
+parents structures each contain candidate data; their sizes are reported
+separately, not assumed bitwise identical.
+
+**Encoding and repetition:** snapshot bytes are already typed JSON from
+`_pack`, and the event's typed JSON encodes these bytes again as Base64. Across
+the 42 L-SHADE state-bearing events, 147,913,887 raw snapshot bytes became
+197,218,564 Base64 characters (+49,304,677, about 33.3%); across DE's 43,
+306,556,408 became 408,741,932 (+102,185,524). This excludes event wrapper
+bytes. On the first actual committed candidate from each journal, directly
+encoded typed candidate data was 2,916 bytes, while its recursively packed
+snapshot representation was 8,703 bytes (2.98×); its 104-byte binary64 vector
+alone was 203 bytes as a typed ndarray JSON value. These are representative
+examples, not a decomposition of every field's semantic information. All 20
+post-initialization START snapshots were **byte-identical** to the immediately
+preceding COMMIT in each arm: 72,119,946 raw state bytes repeated for L-SHADE
+and 145,851,338 for DE, before outer Base64. Across all state-bearing events,
+there were 22/42 and 23/43 distinct SHA-256 values respectively. Exact
+pre-state durability remains required; this measurement does not authorize
+omitting or weakening it.
+
+**One recommended proposal, not implemented:** investigate versioned,
+lossless per-event physical compression, reconstructing and verifying the exact
+original canonical typed event bytes before the existing logical hash-chain and
+prefix checks. First require owner/independent review of the precise physical
+format, hash coverage, decompression limits, corruption/fault handling and
+compatibility: a change to journal format or hash meaning is not automatically
+Q0-compatible, and historical journals must not be rewritten. In this diagnostic
+only, zlib level 1 was applied **independently in memory** to each existing
+payload and each decompressed result was checked byte-for-byte. Total payloads
+would be 20,511,232 / 46,082,607 bytes instead of 199,390,609 / 410,746,758
+(89.71% / 88.78% payload reduction). This is not an actual SQLite file-size
+result, excludes format/index overhead, and says nothing conclusive about the
+full horizon. Compression consumed 0.66 / 1.48 s and decompression 0.26 / 0.68 s
+for one pass over L-SHADE/DE payloads on this host. The actual uncompressed
+both-arm restart at this point took 207.02 s; a compressed restart was **not**
+implemented or timed. Lower I/O could help, but repeated typed decoding,
+prefix reconciliation and added decompression may dominate; speedup is
+unproven. Q0's exact complete pre-state, typed RNG, immutable results, hash
+integrity, atomicity/durability and state-v4 isolation must all remain intact.
+No Q1-D completion, Q1-E, scientific COM/SAW run or merge is claimed.
+
 ### Bounded storage and restart feasibility probe (latest review)
 
 **Disposition: full-horizon execution blocked pending a bounded resource plan
