@@ -76,9 +76,16 @@ def test_new_session_hydrates_committed_steps_and_replays_pending(initialized_pa
 @pytest.mark.parametrize("role", [0, 1])
 def test_uninterrupted_and_fresh_session_scientific_trajectory_match(initialized_pair, _q1_initialized_baseline, role):
     metadata, pair, genesis, _, _, arms = initialized_pair
-    evaluate = lambda v, o: candidate(v, o, pair=pair)
+    # Force successful L-SHADE offspring after the common initialization so
+    # the parity check covers archive and in-progress adaptation as well as shrink.
+    evaluate = lambda v, o: candidate(v, o, pair=pair, score=0. if role == 0 else None)
     reference = arms[role]
+    reference.evaluator = evaluate
     assert reference.step() and reference.step()
+    if role == 0:
+        assert len(reference.backend._population) < 234
+        assert reference.backend._archive and reference.backend._successful_f
+        assert reference.backend._memory_batch_proposals == 2
     kinds = {"RNG_DRAW_STARTED", "RNG_DRAW_COMMITTED", "PROPOSAL_ATTEMPT",
              "DUPLICATE_DETECTED", "EVALUATION_INTENT", "EVALUATION_RESULT_COMMITTED"}
     def scientific_events(arm):
@@ -95,6 +102,7 @@ def test_uninterrupted_and_fresh_session_scientific_trajectory_match(initialized
         return prepare_pair(pair=pair, genesis=genesis, metadata=metadata,
                             geometry_valid=lambda v: True, evaluators=(evaluate, evaluate))[1][role]
     interrupted = restarted_arms[role]
+    interrupted.evaluator = evaluate
     assert interrupted.step()
     event = interrupted._event
     def crash(suffix, kind, payload):

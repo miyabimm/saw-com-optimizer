@@ -14,7 +14,7 @@ representative local checks, not the required full Q1-D matrix.
 | New session after a committed search step | Restore the contiguous step prefix, including backend, RNG ordinal and watchdog state. | Both arms restored one committed step in the focused synthetic test. |
 | Result committed, before next optimizer-step commit | Reconstruct the transition from its pre-state with the committed RNG and result; do not dispatch another evaluator call. | Both arms reproduced the interrupted backend snapshot and 236 unique FE/trace rows in a new session. |
 | Candidate record mapping serialization | Stable snapshot bytes despite canonical journal decoding of mapping key order. | Candidate record mappings are serialized in canonical key order; cache/population ordering is not sorted. Existing same-session replay tests pass. |
-| Uninterrupted vs fresh session, both arms | Match ordered logical RNG and proposal events, physical evaluator inputs, result/trace and optimizer state, rank/best/top-16. | Starting from the same isolated committed SQLite initialization prefix, two search steps match exact typed event bytes, complete live-state snapshot, trace and top-16; 236 FE. The crash is before the second step commit, after its result. |
+| Uninterrupted vs fresh session, both arms | Match ordered logical RNG and proposal events, physical evaluator inputs, result/trace and optimizer state, rank/best/top-16. | Starting from the same isolated committed SQLite initialization prefix, two search steps match exact typed event bytes, complete live-state snapshot, trace and top-16; 236 FE. The crash is before the second step commit, after its result. For L-SHADE a synthetic zero-score search evaluator deliberately forces improvements, so the compared state includes nonempty archive/success batch and a shrunken population. This does not reach a memory flush or archive trim. |
 | RNG STARTED / lost NumPy return | Pending call is regenerated from its pre-state under the same ID. | DE synthetic fixture interrupts before and after physical RNG invocation; one START and one COMMIT for the logical call on new-session replay. |
 | Evaluator interruption | No FE until result; a repeated physical attempt is not a modeled physics failure. | DE fixture records two identical physical attempts, one infrastructure interruption and one committed 235th result/FE. |
 | Proposal committed before intent | Generate the same intent without redrawing committed RNG. | DE fresh-session fixture reproduces the proposal's physical bits, does not invoke the RNG and commits one FE. |
@@ -27,8 +27,9 @@ representative local checks, not the required full Q1-D matrix.
 | 4096-FE step commit before terminal event | Restore without rerunning and seal one search-only terminal status. | Minimal mocked-state SQLite transition fixture verifies one durable terminal event, no extra state/FE/RNG; this is not a 4096-FE trajectory test. |
 
 The uninterrupted comparison is deliberately bounded to two search steps;
-it does not establish full-horizon equivalence or exercise adaptation/shrink,
-fallback, duplicate/no-FE steps or a real 4096-FE terminal trajectory. More
+it does not establish full-horizon equivalence, a memory flush or archive trim,
+or a real 4096-FE terminal trajectory. The separately forced fallback and
+duplicate/no-FE probes below are not full coverage of those paths. More
 fault boundaries and identity, malformed snapshot, checkpoint and corruption
 tests are needed; the prefix checks do not yet prove every possible malformed
 but hash-valid event sequence, pending proposal/cursor transition, or checkpoint. In particular, this partial implementation
@@ -132,3 +133,5 @@ The pending-prestate corruption RED test failed at `1059619` by reaching
 restore. After the transition-prefix check, it and the existing FE mismatch,
 both two-step trajectory cases and evaluator retry passed (5 in 140.68 s).
 This is not proof of all pending cursor, checkpoint, or terminal consistency.
+The expanded two-arm parity test passed (2 in 131.21 s including setup); the
+L-SHADE check explicitly requires nonempty archive/success batch and shrink.
